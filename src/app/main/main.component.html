@@ -1,0 +1,161 @@
+<section class="hero is-fullheight">
+	<!--	<div class="hero-head has-background-warning">-->
+	<!--		<div class="container">-->
+	<!--			<header class="section">-->
+	<!--				<h1 class="title">人生重启穿越舱</h1>-->
+	<!--				<h2 class="subtitle">-->
+	<!--					不知道这个地方是干嘛的。-->
+	<!--				</h2>-->
+	<!--			</header>-->
+	<!--		</div>-->
+	<!--	</div>-->
+	<div class="hero-body">
+		<div class="container column is-0-touch p-0">
+
+			<section class="columns is-mobile">
+				<form class="column is-full-touch" action="/download-file" method="post">
+
+					<article class="panel is-info">
+						<p class="panel-heading">
+							发电说明
+						</p>
+						<div class="panel-block">
+							<div class="content is-normal">
+								<ol type="1">
+									<li><strong>可以去
+										<a class="has-text-weight-bold mx-1" href="https://afdian.net/a/yaozhe2" target="_blank">主页(点击跳转)</a>
+										选择你想解锁的，直接发电</strong></li>
+									<li><strong>发电留言填<span class="has-text-info">邮箱</span>，<span class="has-text-danger">不要其他多余！</span>否则系统无法自动发邮件！</strong></li>
+									<li><strong>如没收到，请检查<span class="has-text-danger">垃圾箱</span>。</strong></li>
+									<li><strong>如果依然没收到，请在爱发电私信，管理员看到后会解决！</strong></li>
+									<li><strong>私信勿讨论敏感无关内容！你需要的都在邮件里！</strong></li>
+									<li><strong>下面是快捷入口</strong></li>
+								</ol>
+								<div class="columns is-mobile is-multiline is-variable is-1">
+									<div class="column is-narrow">
+										<a class="tag is-link is-medium" href="https://afdian.net/bundle/b0ed0668e5b911eda64852540025c377" target="_blank">11-15合集</a>
+									</div>
+									<div class="column is-narrow">
+										<a class="tag is-link is-medium" href="https://afdian.net/item/0ed84074e5b711edb77c52540025c377" target="_blank">染绿11</a>
+									</div>
+									<div class="column is-narrow">
+										<a class="tag is-link is-medium" href="https://afdian.net/item/5b647304e5b711edb18d52540025c377" target="_blank">染绿12</a>
+									</div>
+									<div class="column is-narrow">
+										<a class="tag is-link is-medium" href="https://afdian.net/item/822360aee5b711ed817a52540025c377" target="_blank">染绿13</a>
+									</div>
+									<div class="column is-narrow">
+										<a class="tag is-link is-medium" href="https://afdian.net/item/ae1a848ae5b711edbfd852540025c377" target="_blank">染绿14</a>
+									</div>
+									<div class="column is-narrow">
+										<a class="tag is-link is-medium" href="https://afdian.net/item/df1ea2d2e5b711edbede52540025c377" target="_blank">染绿15</a>
+									</div>
+									<div class="column is-narrow">
+										<a class="tag is-link is-medium" href="https://afdian.net/item/8647c972f5ed11ed98df5254001e7c00" target="_blank">染绿16</a>
+									</div>
+								</div>
+							</div>
+						</div>
+					</article>
+				</form>
+				<div class="column">
+				</div>
+			</section>
+
+			<section class="columns is-mobile mt-3">
+				<form class="column is-full-touch" action="/download-file" method="post">
+
+					<article class="panel is-warning">
+						<p class="panel-heading">
+							快捷方法（确保邮箱是你的）
+						</p>
+						<div class="panel-block">
+							<div class="control">
+								<div class="field is-horizontal">
+									<div class="field-label is-normal">
+										<label class="label">选择解锁项</label>
+									</div>
+									<div class="field-body">
+										<div class="field">
+											<div class="control">
+												<div class="select">
+													<select [(ngModel)]="url_value.url" required name="url" #url="ngModel">
+														<option *ngFor="let p of products" [value]="p.url">{{p.name}}</option>
+													</select>
+												</div>
+												<p *ngIf="url.invalid" class="help is-danger">请选择要解锁的内容</p>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<div class="panel-block">
+							<div class="control">
+								<div class="field is-horizontal">
+									<div class="field-label is-normal">
+										<label class="label">邮箱地址</label>
+									</div>
+									<div class="field-body">
+										<div class="field">
+											<div class="control">
+												<input class="input" name="email" type="email" pattern="^[\w-]+(\.[\w-]+)*@([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$"
+												       [(ngModel)]="url_value.email" required placeholder="你的邮箱地址" #email="ngModel">
+												<p style="display: none" class="help is-danger">邮箱格式不对</p>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<div class="panel-block">
+							<div class="control">
+								<div class="field is-horizontal">
+									<div class="field-label">
+									</div>
+									<div class="field-body">
+										<div class="field">
+											<div class="control">
+												<button *ngIf="!(email.valid&&url.valid)" type="button" disabled class="button is-primary">
+													请先填好邮箱，选好解锁内容
+												</button>
+												<a *ngIf="email.valid&&url.valid" type="button" class="button is-primary"
+												   target="_blank" href="{{url.value}}&remark={{email.value}}">
+													选好了，去发电
+												</a>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</article>
+				</form>
+				<div class="column">
+				</div>
+			</section>
+
+			<section class="columns is-mobile mt-3">
+				<article class="message column is-full-touch">
+					<div class="message-body">
+						<div class="content is-normal">
+							<ul>
+								<li><strong>原创不易，喜欢请支持。</strong></li>
+								<li><strong>本页面由粉丝支持赞助，与爱发电平台以及爱发电创作者无关。</strong></li>
+								<!--								<li><strong>作者在<a class="has-text-link has-text-weight-bold mx-1" href="https://www.pixiv.net/users/9672328" target="_blank">Pixiv</a>更新！</strong></li>-->
+							</ul>
+						</div>
+					</div>
+				</article>
+				<div class="column">
+				</div>
+			</section>
+
+		</div>
+	</div>
+	<div class="hero-foot has-background-warning">
+		<div class="container">
+
+		</div>
+	</div>
+</section>
