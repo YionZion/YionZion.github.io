@@ -101,7 +101,8 @@
 											<div class="control">
 												<input class="input" name="email" type="email" pattern="^[\w-]+(\.[\w-]+)*@([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$"
 												       [(ngModel)]="url_value.email" required placeholder="你的邮箱地址" #email="ngModel">
-												<p style="display: none" class="help is-danger">邮箱格式不对</p>
+												<p *ngIf="email.invalid" class="help is-danger">邮箱格式不对</p>
+												<p *ngIf="email.valid" class="help is-success">邮箱已填，确定是我的</p>
 											</div>
 										</div>
 									</div>
