@@ -1,3 +1,44 @@
+<div class="modal" [class.is-active]="show_modal">
+	<div class="modal-background" (click)="show_modal=!show_modal"></div>
+	<div class="modal-card">
+		<header class="modal-card-head">
+			<p class="modal-card-title">复制订单号示例</p>
+			<button class="delete" aria-label="close" (click)="show_modal=!show_modal"></button>
+		</header>
+		<section class="modal-card-body">
+			<div class="box content">
+				<h3>第1步</h3>
+				<figure class="image">
+					<img src="assets/exp1.png">
+				</figure>
+			</div>
+			<div class="box content">
+				<h3>第2步</h3>
+				<figure class="image">
+					<img src="assets/exp2.png">
+				</figure>
+			</div>
+		</section>
+	</div>
+</div>
+
+<div class="modal" [class.is-active]="show_modal2">
+	<div class="modal-background" (click)="show_modal2=!show_modal2"></div>
+	<div class="modal-card">
+		<header class="modal-card-head">
+			<p class="modal-card-title">填邮箱示例</p>
+			<button class="delete" aria-label="close" (click)="show_modal2=!show_modal2"></button>
+		</header>
+		<section class="modal-card-body">
+			<div class="box content">
+				<figure class="image">
+					<img src="assets/exp3.png">
+				</figure>
+			</div>
+		</section>
+	</div>
+</div>
+
 <section class="hero is-fullheight">
 	<!--	<div class="hero-head has-background-warning">-->
 	<!--		<div class="container">-->
@@ -12,7 +53,7 @@
 	<div class="hero-body">
 		<div class="container column is-0-touch p-0">
 
-			<section class="columns is-mobile">
+			<section class="columns is-mobile is-multiline">
 				<form class="column is-full-touch" action="/download-file" method="post">
 
 					<article class="panel is-info">
@@ -25,11 +66,15 @@
 									<li><strong>可以去
 										<a class="has-text-weight-bold mx-1" href="https://afdian.net/a/yaozhe2" target="_blank">主页(点击跳转)</a>
 										选择你想解锁的，直接发电</strong></li>
-									<li><strong>发电留言填<span class="has-text-info">邮箱</span>，<span class="has-text-danger">不要其他多余！</span>否则系统无法自动发邮件！</strong></li>
+									<li>
+										<strong>发电留言填<span class="has-text-info">邮箱</span>，<span class="has-text-danger">不要其他多余！</span>否则系统无法自动发邮件！
+									</strong>
+										<a (click)="show_modal2=!show_modal2">(点击查看图片示例)</a>
+									</li>
 									<li><strong>如没收到，请检查<span class="has-text-danger">垃圾箱</span>。</strong></li>
 									<li><strong>如果依然没收到，请在爱发电私信，管理员看到后会解决！</strong></li>
-									<li><strong>私信勿讨论敏感无关内容！你需要的都在邮件里！</strong></li>
-									<li><strong>下面是快捷入口</strong></li>
+									<li><strong>私信勿讨论敏感无关内容！你需要的都在邮件里！</strong><a class="is-link" (click)="show_modal=!show_modal">(如何复制订单号？点击这里)</a></li>
+									<li><strong>下面是发电快捷入口</strong></li>
 								</ol>
 								<div class="columns is-mobile is-multiline is-variable is-1">
 									<div class="column is-narrow">
@@ -58,11 +103,12 @@
 						</div>
 					</article>
 				</form>
-				<div class="column">
+				<div class="column is-full-touch">
+
 				</div>
 			</section>
 
-			<section class="columns is-mobile mt-3">
+			<section class="columns is-mobile is-multiline mt-3">
 				<form class="column is-full-touch" action="/download-file" method="post">
 
 					<article class="panel is-warning">
@@ -101,7 +147,7 @@
 											<div class="control">
 												<input class="input" name="email" type="email" pattern="^[\w-]+(\.[\w-]+)*@([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$"
 												       [(ngModel)]="url_value.email" required placeholder="你的邮箱地址" #email="ngModel">
-												<p *ngIf="email.invalid" class="help is-danger">邮箱格式不对</p>
+												<p *ngIf="email.invalid" class="help is-danger">请填写正确邮箱地址</p>
 												<p *ngIf="email.valid" class="help is-success">邮箱已填，确定是我的</p>
 											</div>
 										</div>
@@ -120,10 +166,15 @@
 												<button *ngIf="!(email.valid&&url.valid)" type="button" disabled class="button is-primary">
 													请先填好邮箱，选好解锁内容
 												</button>
-												<a *ngIf="email.valid&&url.valid" type="button" class="button is-primary"
+												<a *ngIf="email.valid&&url.valid" class="button is-primary"
 												   target="_blank" href="{{url.value}}&remark={{email.value}}">
 													选好了，去发电
 												</a>
+												<br/>
+												<a *ngIf="email.valid&&url.valid" class="is-info is-underlined" (click)="copy()">
+													如过不想跳转到APP，点此复制链接到浏览器打开
+												</a>
+												<p *ngIf="show_tips" class="help is-success">链接已复制，可以粘贴到浏览器地址栏</p>
 											</div>
 										</div>
 									</div>
@@ -132,11 +183,11 @@
 						</div>
 					</article>
 				</form>
-				<div class="column">
+				<div class="column is-full-touch">
 				</div>
 			</section>
 
-			<section class="columns is-mobile mt-3">
+			<section class="columns is-mobile is-multiline mt-3">
 				<article class="message column is-full-touch">
 					<div class="message-body">
 						<div class="content is-normal">
@@ -148,7 +199,7 @@
 						</div>
 					</div>
 				</article>
-				<div class="column">
+				<div class="column is-full-touch">
 				</div>
 			</section>
 

@@ -7,6 +7,10 @@ import {Component} from '@angular/core';
 })
 export class MainComponent {
 
+	show_modal = false;
+	show_modal2 = false;
+	show_tips = false;
+
 	url_value = {
 		email: '',
 		url: '',
@@ -47,5 +51,31 @@ export class MainComponent {
 		return !(!email || !emailRegex.test(email.trim()));
 
 	}
+
+	copy() {
+		const text = `${this.url_value.url}&remark=${this.url_value.email}`;
+		if (navigator.clipboard) {
+			navigator.clipboard.writeText(text)
+				.then(() => {
+					this.show_tips = true;
+				})
+				.catch((err) => {
+					console.error('复制失败: ', err);
+				});
+		} else {
+			const textarea = document.createElement('textarea');
+			textarea.value = text;
+			document.body.appendChild(textarea);
+			textarea.select();
+			try {
+				document.execCommand('copy');
+				this.show_tips = true;
+			} catch (err) {
+			} finally {
+				document.body.removeChild(textarea);
+			}
+		}
+	}
+
 
 }
