@@ -17,6 +17,7 @@ export class MainComponent {
 	};
 
 	products = [
+		{url: 'https://afdian.net/order/create?plan_id=b0ed0668e5b911eda64852540025c377&product_type=2', name: '染绿11-15合集'},
 		{
 			url: 'https://afdian.net/order/create?product_type=1&plan_id=0ed84074e5b711edb77c52540025c377&sku=%5B%7B%22sku_id%22%3A%220edb2082e5b711edb33152540025c377%22,%22count%22%3A1%7D%5D',
 			name: '染绿11'
@@ -41,7 +42,6 @@ export class MainComponent {
 			url: 'https://afdian.net/order/create?product_type=1&plan_id=8647c972f5ed11ed98df5254001e7c00&sku=%5B%7B%22sku_id%22%3A%22864aea1cf5ed11edaa715254001e7c00%22,%22count%22%3A1%7D%5D',
 			name: '染绿16'
 		},
-		{url: 'https://afdian.net/order/create?plan_id=b0ed0668e5b911eda64852540025c377&product_type=2', name: '染绿11-15合集'},
 	];
 
 	validateEmail(email: string) {

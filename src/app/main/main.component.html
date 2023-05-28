@@ -58,21 +58,22 @@
 
 					<article class="panel is-info">
 						<p class="panel-heading">
-							发电说明
+							解锁说明
 						</p>
 						<div class="panel-block">
 							<div class="content is-normal">
 								<ol type="1">
-									<li><strong>可以去
+									<li><strong>进去
 										<a class="has-text-weight-bold mx-1" href="https://afdian.net/a/yaozhe2" target="_blank">主页(点击跳转)</a>
 										选择你想解锁的，直接发电</strong></li>
 									<li>
-										<strong>发电留言填<span class="has-text-info">邮箱</span>，<span class="has-text-danger">不要其他多余！</span>否则系统无法自动发邮件！
+										<strong>发电留言填<span class="has-text-info">邮箱</span>，<span class="has-text-danger">不要多余！</span>否则系统无法自动发邮件！
 									</strong>
 										<a (click)="show_modal2=!show_modal2">(点击查看图片示例)</a>
 									</li>
 									<li><strong>如没收到，请检查<span class="has-text-danger">垃圾箱</span>。</strong></li>
-									<li><strong>如果依然没收到，请在爱发电私信，管理员看到后会解决！</strong></li>
+									<li><strong>再三确认没收到，请在爱发电私信，看到后会解决！</strong></li>
+									<li><strong>私信太多可能看漏，请尝试再发一次。</strong></li>
 									<li><strong>私信勿讨论敏感无关内容！你需要的都在邮件里！</strong><a class="is-link" (click)="show_modal=!show_modal">(如何复制订单号？点击这里)</a></li>
 									<li><strong>下面是发电快捷入口</strong></li>
 								</ol>
@@ -81,22 +82,22 @@
 										<a class="tag is-link is-medium" href="https://afdian.net/bundle/b0ed0668e5b911eda64852540025c377" target="_blank">11-15合集</a>
 									</div>
 									<div class="column is-narrow">
-										<a class="tag is-link is-medium" href="https://afdian.net/item/0ed84074e5b711edb77c52540025c377" target="_blank">染绿11</a>
+										<a class="tag is-link is-medium" href="https://afdian.net/item/0ed84074e5b711edb77c52540025c377" target="_blank">染11</a>
 									</div>
 									<div class="column is-narrow">
-										<a class="tag is-link is-medium" href="https://afdian.net/item/5b647304e5b711edb18d52540025c377" target="_blank">染绿12</a>
+										<a class="tag is-link is-medium" href="https://afdian.net/item/5b647304e5b711edb18d52540025c377" target="_blank">染12</a>
 									</div>
 									<div class="column is-narrow">
-										<a class="tag is-link is-medium" href="https://afdian.net/item/822360aee5b711ed817a52540025c377" target="_blank">染绿13</a>
+										<a class="tag is-link is-medium" href="https://afdian.net/item/822360aee5b711ed817a52540025c377" target="_blank">染13</a>
 									</div>
 									<div class="column is-narrow">
-										<a class="tag is-link is-medium" href="https://afdian.net/item/ae1a848ae5b711edbfd852540025c377" target="_blank">染绿14</a>
+										<a class="tag is-link is-medium" href="https://afdian.net/item/ae1a848ae5b711edbfd852540025c377" target="_blank">染14</a>
 									</div>
 									<div class="column is-narrow">
-										<a class="tag is-link is-medium" href="https://afdian.net/item/df1ea2d2e5b711edbede52540025c377" target="_blank">染绿15</a>
+										<a class="tag is-link is-medium" href="https://afdian.net/item/df1ea2d2e5b711edbede52540025c377" target="_blank">染15</a>
 									</div>
 									<div class="column is-narrow">
-										<a class="tag is-link is-medium" href="https://afdian.net/item/8647c972f5ed11ed98df5254001e7c00" target="_blank">染绿16</a>
+										<a class="tag is-link is-medium" href="https://afdian.net/item/8647c972f5ed11ed98df5254001e7c00" target="_blank">染16</a>
 									</div>
 								</div>
 							</div>
@@ -172,7 +173,7 @@
 												</a>
 												<br/>
 												<a *ngIf="email.valid&&url.valid" class="is-info is-underlined" (click)="copy()">
-													如过不想跳转到APP，点此复制链接到浏览器打开
+													如果不想跳转到APP，点此复制链接到浏览器打开
 												</a>
 												<p *ngIf="show_tips" class="help is-success">链接已复制，可以粘贴到浏览器地址栏</p>
 											</div>
