@@ -68,13 +68,11 @@
 										选择你想解锁的，直接发电</strong></li>
 									<li>
 										<strong>发电留言填<span class="has-text-info">邮箱</span>，<span class="has-text-danger">不要多余！</span>否则系统无法自动发邮件！
-									</strong>
+										</strong>
 										<a (click)="show_modal2=!show_modal2">(点击查看图片示例)</a>
 									</li>
-									<li><strong>如没收到，请检查<span class="has-text-danger">垃圾箱</span>。</strong></li>
-									<li><strong>再三确认没收到，请在爱发电私信，看到后会解决！</strong></li>
-									<li><strong>私信太多可能看漏，如长时间未解决请再发一次私信。</strong></li>
-									<li><strong>私信勿讨论敏感无关内容！你需要的都在邮件里！</strong><a class="is-link" (click)="show_modal=!show_modal">(如何复制订单号？点击这里)</a></li>
+									<li><strong>如未收到，请检查<span class="has-text-danger">垃圾箱</span>。</strong></li>
+									<li><strong>私信勿讨论敏感无关内容！你需要的都在邮件里！</strong></li>
 									<li><strong>下面是发电快捷入口</strong></li>
 								</ol>
 								<div class="columns is-mobile is-multiline is-variable is-1">
@@ -109,7 +107,7 @@
 				</div>
 			</section>
 
-			<section class="columns is-mobile is-multiline mt-3">
+			<section class="columns is-mobile is-multiline">
 				<form class="column is-full-touch" action="/download-file" method="post">
 
 					<article class="panel is-warning">
@@ -189,18 +187,48 @@
 			</section>
 
 			<section class="columns is-mobile is-multiline mt-3">
-				<article class="message column is-full-touch">
+				<article class="message is-danger column is-full-touch p-0">
+					<div class="message-header">
+						<p>常见问题</p>
+					</div>
+					<div class="message-body">
+						<div class="content is-small">
+							<h5>没收到邮件？</h5>
+							<ul>
+								<li><strong>请检查垃圾箱</strong></li>
+								<li><strong>请检查邮箱是否是你的</strong></li>
+							</ul>
+							<h5>邮箱地址填错？</h5>
+							<ul>
+								<li><strong>请在爱发电私信，看到后解决</strong></li>
+							</ul>
+							<h5>私信未解决？</h5>
+							<ul>
+								<li><strong>私信太多可能看漏，如长时间未解决请再次私信。</strong></li>
+							</ul>
+							<h5>如何复制订单号？</h5>
+							<ul>
+								<li><strong><a class="is-link" (click)="show_modal=!show_modal">点击查看图片示例</a></strong></li>
+							</ul>
+						</div>
+					</div>
+				</article>
+				<div class="column is-full-touch p-0">
+				</div>
+			</section>
+
+			<section class="columns is-mobile is-multiline">
+				<article class="message column is-full-touch p-0">
 					<div class="message-body">
 						<div class="content is-normal">
 							<ul>
 								<li><strong>原创不易，喜欢请支持。</strong></li>
 								<li><strong>本页面由粉丝支持赞助，与爱发电平台以及爱发电创作者无关。</strong></li>
-								<!--								<li><strong>作者在<a class="has-text-link has-text-weight-bold mx-1" href="https://www.pixiv.net/users/9672328" target="_blank">Pixiv</a>更新！</strong></li>-->
 							</ul>
 						</div>
 					</div>
 				</article>
-				<div class="column is-full-touch">
+				<div class="column is-full-touch p-0">
 				</div>
 			</section>
 
