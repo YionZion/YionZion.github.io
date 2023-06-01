@@ -42,6 +42,10 @@ export class MainComponent {
 			url: 'https://afdian.net/order/create?product_type=1&plan_id=8647c972f5ed11ed98df5254001e7c00&sku=%5B%7B%22sku_id%22%3A%22864aea1cf5ed11edaa715254001e7c00%22,%22count%22%3A1%7D%5D',
 			name: '染16'
 		},
+		{
+			url: 'https://afdian.net/order/create?product_type=1&plan_id=4584825c009911eebab85254001e7c00&sku=%5B%7B%22sku_id%22%3A%224587dbaa009911ee9b055254001e7c00%22,%22count%22%3A1%7D%5D',
+			name: '染17(5w内容，解锁学姐)'
+		},
 	];
 
 	validateEmail(email: string) {
