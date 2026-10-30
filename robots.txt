@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 Disallow: /edit.html
-Sitemap: https://ai-auto-pages.github.io/sitemap.xml
+Sitemap: https://yionzion.github.io/sitemap.xml
