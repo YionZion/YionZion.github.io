@@ -1,0 +1,917 @@
+/* Bulma v1 custom theme for AI-auto-pages, pure CSS-variables method.
+   Official guide (bulma.io/documentation/customize, with-css-variables):
+   keep Bulma's base CSS intact, load this file AFTER bulma.min.css, and
+   create the theme by overwriting Bulma variables under :root. Colour
+   variables are given as HSL components (-h / -s / -l), as Bulma expects,
+   so Bulma's own helpers (is-primary, is-success, soft / light shades)
+   are generated from the same tokens. No Sass build is needed.
+   Load order:
+     <link rel="stylesheet" href="bulma.min.css">
+     <link rel="stylesheet" href="bulma-theme.css">
+   Fonts: Bulma default, deliberately NOT overridden here.
+   ONLY the card-header look below is carried over from the old site, as
+   the user asked to keep it: gradient background, a teal-to-gold accent
+   bar before the title (::before), and a fading gradient line after
+   the title (::after). Everything else in this file is a fresh design. */
+
+:root,
+[data-theme="light"] {
+  /* --- Colour tokens (HSL, Bulma style) --- */
+  /* Primary: deep teal, the same family as the card-header accent.
+     Slightly desaturated vs Bulma default, so it reads calm, not neon. */
+  --bulma-primary-h: 174;
+  --bulma-primary-s: 65%;
+  --bulma-primary-l: 27%;
+  /* Link: a touch darker than primary, for readable links on paper. */
+  --bulma-link-h: 174;
+  --bulma-link-s: 65%;
+  --bulma-link-l: 24%;
+  /* Info: calm slate-blue, not Bulma's default bright blue. */
+  --bulma-info-h: 210;
+  --bulma-info-s: 30%;
+  --bulma-info-l: 48%;
+  /* Success: soft leaf green, close to teal so it sits with primary. */
+  --bulma-success-h: 158;
+  --bulma-success-s: 45%;
+  --bulma-success-l: 38%;
+  /* Warning / gold accent: kept for the card-header bar and warnings. */
+  --bulma-warning-h: 32;
+  --bulma-warning-s: 85%;
+  --bulma-warning-l: 44%;
+  /* Danger: softer, less harsh red than Bulma default. */
+  --bulma-danger-h: 357;
+  --bulma-danger-s: 55%;
+  --bulma-danger-l: 48%;
+
+  /* --- Scheme: soft warm paper, not stark white, not grey ---
+     Page #f3f0e9, cards #fdfbf6 (warm off-white, never pure #fff),
+     text #3a352e (soft charcoal-brown, never pure black). Contrast
+     is kept for readability, but nothing is pure black on pure white,
+     so it reads soft and fresh rather than harsh. */
+  --bulma-scheme-main: #f3f0e9;
+  --bulma-scheme-main-bis: #fdfbf6;
+  --bulma-scheme-main-ter: #ece8dd;
+  --bulma-background: #f3f0e9;
+  --bulma-text: #3a352e;
+  --bulma-text-strong: #2b2620;
+  --bulma-text-weak: #7d766a;
+  /* Primary button text: Bulma defaults invert to the darkest shade,
+     which is dark text on dark teal. Force the light shade so primary
+     buttons read white on teal. */
+  --bulma-primary-invert-l: 96%;
+  /* Inline links: Bulma's link-on-scheme is a bright mid-teal.
+     Force the dark teal so links are readable on paper / light boxes. */
+  --bulma-link-on-scheme-l: 27%;
+  --bulma-text-title: #2b2620;
+  --bulma-border: #e2dccf;
+  --bulma-border-weak: #ebe7db;
+
+  /* Custom tokens for boxes that Bulma does not theme by itself.
+     Defined here (light) and again in the dark block, so every
+     custom box switches with the theme instead of staying light. */
+  --theme-text-soft: #5c554b;
+  --theme-link: #0f766e;
+  --theme-link-soft: #e6f4f1;
+
+  /* --- Shape: modern, but not bubbly --- */
+  --bulma-radius: 10px;
+  --bulma-radius-large: 14px;
+  --bulma-radius-small: 8px;
+  --bulma-radius-rounded: 9999px;
+
+  /* --- Depth: one layered soft shadow, used by cards and boxes --- */
+  --bulma-shadow: 0 1px 2px rgba(60, 50, 35, 0.04), 0 12px 32px rgba(60, 50, 35, 0.07);
+  --bulma-card-shadow: 0 1px 2px rgba(60, 50, 35, 0.04), 0 12px 32px rgba(60, 50, 35, 0.07);
+  --bulma-box-shadow: 0 1px 2px rgba(60, 50, 35, 0.04), 0 12px 32px rgba(60, 50, 35, 0.07);
+
+  /* --- Type scale: a little larger, a little tighter --- */
+  --bulma-size-normal: 15px;
+  --bulma-body-line-height: 1.65;
+  --bulma-title-weight: 800;
+  --bulma-content-heading-weight: 700;
+
+  /* --- Controls --- */
+  --bulma-control-radius: 10px;
+  --bulma-control-radius-small: 8px;
+  --bulma-input-border-l: 88%;
+  --bulma-input-focus-border-l: 27%;
+  --bulma-button-weight: 600;
+}
+
+/* Dark theme: eye-protecting, soft, never harsh.
+   Root cause of the mobile bug this replaces: the old file only
+   darkened a few custom boxes under
+   `@media (prefers-color-scheme: dark)`, while text stayed on the
+   light :root tokens (Bulma dark only applies under
+   [data-theme="dark"], which nothing ever set). Result: dark cards
+   with dark text, unreadable. That media block is deleted below.
+   Now theme is chosen in JS (see the head script in index.html /
+   edit.html): light / dark / system. System means JS sets
+   data-theme to dark or light from matchMedia and listens for
+   changes, so this [data-theme="dark"] block is the single source
+   for dark, in every case. Never re-add a prefers-color-scheme
+   media block that darkens surfaces on its own, or manual Light
+   on a dark phone will break again.
+   Palette: warm dark brown, never pure black; text warm off-white,
+   never pure white; colours desaturated and lightened just enough
+   to read on dark, never neon. */
+[data-theme="dark"] {
+  --bulma-primary-h: 174;
+  --bulma-primary-s: 50%;
+  --bulma-primary-l: 42%;
+  --bulma-link-h: 174;
+  --bulma-link-s: 45%;
+  --bulma-link-l: 65%;
+  --bulma-info-h: 210;
+  --bulma-info-s: 30%;
+  --bulma-info-l: 65%;
+  --bulma-success-h: 158;
+  --bulma-success-s: 40%;
+  --bulma-success-l: 55%;
+  --bulma-warning-h: 38;
+  --bulma-warning-s: 70%;
+  --bulma-warning-l: 60%;
+  --bulma-danger-h: 357;
+  --bulma-danger-s: 50%;
+  --bulma-danger-l: 62%;
+  --bulma-scheme-main: #201d1a;
+  --bulma-scheme-main-bis: #2b2723;
+  --bulma-scheme-main-ter: #35302a;
+  --bulma-background: #201d1a;
+  --bulma-text: #e6dfd2;
+  --bulma-text-strong: #f3eee3;
+  --bulma-text-weak: #a89f8d;
+  --bulma-primary-invert-l: 96%;
+  --bulma-link-on-scheme-l: 70%;
+  --bulma-text-title: #f3eee3;
+  --bulma-border: #403a30;
+  --bulma-border-weak: #352f27;
+  --theme-text-soft: #d0c8b8;
+  --theme-link: #8ad8cc;
+  --theme-link-soft: #1f3d3a;
+  --bulma-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 12px 32px rgba(0, 0, 0, 0.35);
+  --bulma-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 12px 32px rgba(0, 0, 0, 0.35);
+  --bulma-box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 12px 32px rgba(0, 0, 0, 0.35);
+  --bulma-input-focus-border-l: 65%;
+}
+
+/* ============ Layout: Bulma container width, centred, not a custom fixed width ============
+   Width is NOT set here any more. The HTML uses Bulma's own
+   .container.is-max-tablet (705px in the bundled Bulma 1.0.4, full
+   width below the desktop breakpoint, centred on desktop and up),
+   so the content column is centred and not too wide without a
+   hard-coded pixel/rem cap in this file. .site-container /
+   .edit-container below are only hooks for positioning (the theme
+   switch is absolutely positioned at the container's top-right)
+   and for the homepage flex layout; they set no width. */
+.site-container {
+  position: relative;
+}
+.edit-container {
+  position: relative;
+  /* Room for the theme button above the first card: the button is
+     absolutely positioned at the container's top-right, so without
+     this padding it would sit on top of the first card's header. */
+  padding-top: 44px;
+}
+.section {
+  padding-top: 1.5rem;
+  padding-bottom: 1.5rem;
+}
+@media (min-width: 768px) {
+  .site-section {
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .site-section .site-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+}
+
+/* ============ Site title: solid ink for readability, with a centred
+   teal-to-gold bar underneath echoing the card-header accent.
+   Gradient text looked black/olive in screenshots and hurt contrast,
+   so the gradient is now a visible bar, not the text itself. ============ */
+.site-container > .title {
+  font-size: 30px;
+  letter-spacing: 0.04em;
+  margin-bottom: 1.25rem;
+  color: var(--bulma-text-strong);
+}
+.site-container > .title::after {
+  content: "";
+  display: block;
+  width: 56px;
+  height: 4px;
+  margin: 12px auto 0;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #0f766e, #d97706);
+}
+
+/* ============ Cards: white, soft border, layered shadow ============ */
+.card {
+  background: var(--bulma-scheme-main-bis);
+  border: 1px solid var(--bulma-border);
+  border-radius: var(--bulma-radius-large);
+  overflow: hidden;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.card-content {
+  padding: 20px 22px;
+}
+
+/* ============ KEPT: card-header, exactly as before ============
+   Gradient background, accent bar before the title, fading line
+   after the title. Colours are hard-coded here (not via variables)
+   so this look never drifts when the rest of the theme changes. */
+.card-header {
+  background: linear-gradient(90deg, rgba(15, 118, 110, 0.09), rgba(15, 118, 110, 0) 72%);
+  border-bottom: 1px solid var(--bulma-border);
+  box-shadow: none;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 18px;
+}
+.card-header::before {
+  content: "";
+  width: 5px;
+  height: 20px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #0f766e, #d97706);
+  flex: none;
+}
+.card-header-title {
+  padding: 0;
+  font-size: 17px;
+  letter-spacing: 0.02em;
+  /* Bulma defaults flex-grow to 1, which makes the title box stretch
+     and leaves blank space after the text. Keep it text-width only,
+     so the ::after gradient line fills the rest. */
+  flex-grow: 0 !important;
+  flex-shrink: 0;
+}
+.card-header::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(15, 118, 110, 0.25), rgba(15, 118, 110, 0));
+  margin-left: 4px;
+}
+
+/* ============ Buttons ============
+   Standalone primary buttons may lift and gain shadow on hover.
+   Small buttons and Form-addons buttons must NOT lift or shadow:
+   lift breaks the joined input+button line, and on a 30px button
+   a shadow reads as noise, not feedback. There, hover is only
+   a background / border darkening. */
+.button {
+  border-radius: var(--bulma-control-radius);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+.button:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+.button:not(:disabled):active {
+  transform: translateY(0);
+}
+.button.is-primary {
+  color: #fff !important;
+  box-shadow: 0 6px 18px rgba(15, 118, 110, 0.28);
+}
+.button.is-primary:hover,
+.button.is-primary:active,
+.button.is-primary:focus {
+  color: #fff !important;
+}
+.button.is-primary:not(:disabled):hover {
+  background-color: #0b5f58;
+  border-color: #0b5f58;
+  box-shadow: 0 10px 28px rgba(15, 118, 110, 0.38);
+  transform: translateY(-1px);
+}
+.button.is-primary:disabled {
+  /* Readable muted disabled, not pale teal with faint text.
+     Every property needs !important here: .button.is-primary
+     sets white text with !important, which otherwise wins over
+     this rule and leaves white text on a pale background. */
+  opacity: 1 !important;
+  background: var(--bulma-scheme-main-ter) !important;
+  border-color: var(--bulma-border) !important;
+  color: var(--bulma-text-weak) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+.button.is-danger.is-outlined:hover {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #b91c1c;
+  transform: none;
+  box-shadow: none;
+}
+/* Small buttons: larger touch target, no lift, background-only hover. */
+.buttons.are-small .button {
+  min-height: 36px;
+  padding: 7px 12px;
+  font-size: 13px;
+}
+.buttons.are-small .button:not(:disabled):hover {
+  transform: none;
+  box-shadow: none;
+  background: var(--bulma-scheme-main-ter);
+  border-color: var(--bulma-border);
+}
+/* Add buttons: tinted, so they are not lost in the long list. */
+#addBtn,
+#addFaqBtn {
+  background: #f0fdfa;
+  border-color: #99f6e4;
+  color: #0f766e;
+  font-weight: 700;
+}
+/* Small danger button keeps its red hover, not the generic grey hover. */
+.buttons.are-small .button.is-danger.is-outlined:hover {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #b91c1c;
+}
+#addBtn:hover,
+#addFaqBtn:hover {
+  background: #ccfbf1;
+  border-color: #5eead4;
+}
+a:focus-visible,
+.button:focus-visible {
+  outline: 2px solid var(--bulma-primary);
+  outline-offset: 2px;
+}
+
+/* ============ Forms: white fields, teal focus ring ============ */
+.field:not(:last-child) {
+  margin-bottom: 18px;
+}
+.label {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--bulma-text-strong);
+  margin-bottom: 8px;
+}
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--bulma-text-weak);
+  opacity: 1;
+}
+.order-control .input::placeholder {
+  /* Order placeholder is the current position, not an empty hint:
+     make it darker so it is not mistaken for a faint placeholder. */
+  color: var(--bulma-text);
+}
+.input[type="number"]::-webkit-outer-spin-button,
+.input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.input,
+.textarea,
+.select select {
+  background: var(--bulma-scheme-main-bis);
+  border-color: var(--bulma-border);
+  border-radius: var(--bulma-control-radius);
+  box-shadow: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.input:focus,
+.textarea:focus,
+.select select:focus,
+.input:focus-visible,
+.textarea:focus-visible {
+  border-color: var(--bulma-primary);
+  box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.20);
+}
+.textarea {
+  min-height: 150px;
+  line-height: 1.6;
+  resize: vertical;
+  padding: 12px 14px;
+}
+.select:not(.is-multiple)::after {
+  border-color: var(--bulma-text-weak);
+}
+
+/* ============ Detail / preview boxes: tips and FAQ answers ============ */
+.detail,
+.preview {
+  display: none;
+  /* Keep CJK words together (e.g. “密码” must not split across
+     lines) while long Latin URLs inside <a> may still break. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  margin-top: 14px;
+  padding: 14px 16px;
+  background: var(--bulma-scheme-main-ter);
+  border: 1px solid var(--bulma-border);
+  border-left: 3px solid var(--bulma-primary);
+  border-radius: 10px;
+  max-height: 210px;
+  overflow-y: auto;
+}
+.detail.show,
+.preview.show {
+  display: block;
+  animation: detailIn 0.2s ease;
+}
+@keyframes detailIn {
+  from { opacity: 0; transform: translateY(-2px); }
+  to { opacity: 1; transform: none; }
+}
+.edit .preview {
+  display: block;
+  margin-top: 12px;
+}
+.preview p,
+.detail p {
+  margin: 8px 0;
+  overflow-wrap: break-word;
+}
+.detail a,
+.preview a {
+  font-weight: 600;
+  color: var(--theme-link);
+  overflow-wrap: anywhere;
+}
+.detail a:hover,
+.preview a:hover {
+  text-decoration: underline;
+}
+.detail .has-text-danger,
+.preview .has-text-danger {
+  font-weight: 700;
+}
+
+/* ============ FAQ: summary as a soft pill, + / - as a badge ============ */
+details {
+  padding: 2px 0;
+}
+summary {
+  cursor: pointer;
+  font-weight: 650;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--bulma-scheme-main-ter);
+  border: 1px solid var(--bulma-border-weak);
+  border-radius: 10px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+summary:hover {
+  background: var(--bulma-primary-soft);
+}
+summary::-webkit-details-marker {
+  display: none;
+}
+summary::after {
+  content: "";
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: var(--bulma-scheme-main-bis);
+  border: 1px solid var(--bulma-border);
+  /* Plus icon, drawn, not typed: horizontal + vertical bars,
+     both centred in the circle. No font metrics involved. */
+  background-image:
+    linear-gradient(var(--bulma-text-weak), var(--bulma-text-weak)),
+    linear-gradient(var(--bulma-text-weak), var(--bulma-text-weak));
+  background-size: 12px 2px, 2px 12px;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+details[open] summary {
+  background: var(--bulma-primary-soft);
+  color: var(--bulma-primary);
+}
+details[open] summary::after {
+  /* Minus icon, drawn: horizontal bar only, same centre, same size. */
+  background-image:
+    linear-gradient(var(--bulma-primary), var(--bulma-primary));
+  background-size: 12px 2px;
+  border-color: #99f6e4;
+}
+details > div {
+  margin: 10px 0 2px;
+  padding: 12px 14px;
+  background: var(--bulma-scheme-main-ter);
+  border: 1px solid var(--bulma-border-weak);
+  border-radius: 10px;
+  color: var(--theme-text-soft);
+  font-size: 14px;
+  line-height: 1.7;
+}
+details > div p {
+  margin: 8px 0;
+}
+details > div p:first-child {
+  margin-top: 0;
+}
+details > div p:last-child {
+  margin-bottom: 0;
+}
+
+/* FAQ card head: buttons are right-aligned via Bulma .buttons.is-right
+   (see edit.html), and the head gets the same bottom spacing as a
+   project card's .level head (1.5rem), so the first field sits at
+   the same distance in both card types. */
+.faq-head {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1.5rem;
+}
+.faq-head .field {
+  margin-bottom: 0;
+}
+
+/* ============ Notifications: soft tinted, not flat Bulma colour ============ */
+.notification {
+  border-radius: 12px;
+  border: 1px solid var(--bulma-border);
+  box-shadow: none;
+}
+.notification.is-success {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
+}
+.notification.is-danger {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+/* ============ Edit page: section title, JSON preview, save bar ============ */
+.edit .section-title {
+  font-size: 16px;
+  font-weight: 750;
+  margin: 22px 0 6px;
+  color: var(--bulma-text-strong);
+}
+.edit .json-preview {
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: 12px;
+  line-height: 1.6;
+  max-height: 320px;
+  overflow: auto;
+  /* Gap from the summary above: it was margin:0, so the pre block
+     touched the summary pill. 16px matches the card padding rhythm. */
+  margin: 16px 0 0;
+  background: var(--bulma-scheme-main-ter);
+  border: 1px solid var(--bulma-border-weak);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.edit .preview-label {
+  font-size: 13px;
+  color: var(--bulma-text-weak);
+  margin: 16px 0 8px;
+}
+.savebar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--bulma-scheme-main-bis);
+  border-top: 1px solid var(--bulma-border);
+  box-shadow: 0 -8px 24px rgba(33, 29, 25, 0.08);
+  padding: 14px 16px;
+  z-index: 20;
+}
+.savebar-inner {
+  /* Width and centring come from Bulma .container.is-max-tablet
+     in edit.html, matching the edit content column. No custom
+     max-width here, so the save bar cannot drift from the form. */
+}
+/* Savebar per Bulma Form general, has-addons + is-expanded:
+   <div class="field has-addons">
+     <p class="control is-expanded"><input></p>
+     <p class="control"><button></button></p>
+   </div>
+   The token control expands to fill the remaining space, the button
+   stays its natural width, and has-addons stretch + height:100%
+   forces input and button to the exact same height, instead of
+   the previous grouped version where the button still looked
+   taller (its shadow halo plus independent heights). Joined
+   controls share one border, primary button in addons is flat
+   (no shadow/lift) but keeps teal + white text, hover dark teal. */
+.savebar-inner .field.has-addons {
+  margin-bottom: 0;
+  width: 100%;
+}
+.savebar-inner .field.has-addons .control.is-expanded {
+  min-width: 0;
+}
+.savebar-inner .field.has-addons .control .button {
+  white-space: nowrap;
+}
+.edit-section {
+  padding-bottom: 110px;
+}
+
+/* ============ Tool addons: up / down / delete, joined like the order
+   control, with no shadow and no hover effect ============
+   Bulma has-addons joins the three buttons into one control
+   (shared borders, square inner corners, same height via the
+   height:100% rule below).
+   User clarification 2026-10-26 (supersedes the v16/v17 "no hover
+   change at all" reading): hover must work like the order control's
+   confirm button - background changes clearly, border must NOT
+   change at all, otherwise it looks strange. V17 failed this in
+   two ways: its background stayed white, so the only visible
+   change on hover was the seam, and Bulma's addons rule raises a
+   hovered button to z-index 2, so hovering "下移" painted its grey
+   right border over "删除"'s red left border and the red seam
+   turned grey - a border change even though the button's own
+   border-color/width were locked. So v18 does three things:
+   (1) hover/active/focus background changes to a clear tint
+   (up/down: scheme-main-ter, delete: light red #fef2f2, the same
+   tint the generic danger hover already uses), text colour
+   unchanged (delete stays red);
+   (2) border is locked in every interactive state: width 1px
+   (both the property and Bulma's --bulma-button-border-width
+   variable, which also drives padding - Bulma 1.0.4's
+   `.button.is-outlined:hover` otherwise raises it to
+   max(2px, 0.125em)), colour locked to the normal colour
+   (grey for up/down, danger red for delete), no shadow, no lift;
+   (3) z-index is locked to auto in every interactive state, so
+   a hovered button is NOT raised above its neighbours and the
+   shared seam keeps its normal colour (in particular the
+   down/delete seam stays red when hovering "下移"). */
+.tool-addons .button {
+  min-height: 36px;
+  padding: 7px 12px;
+  font-size: 13px;
+  box-shadow: none !important;
+  transform: none !important;
+  border-width: 1px;
+  --bulma-button-border-width: 1px;
+}
+.tool-addons .button:not(:disabled):hover,
+.tool-addons .button:not(:disabled):active,
+.tool-addons .button:not(:disabled):focus,
+.tool-addons .button:not(:disabled).is-hovered,
+.tool-addons .button:not(:disabled).is-focused,
+.tool-addons .button:not(:disabled).is-active {
+  box-shadow: none !important;
+  transform: none !important;
+  background: var(--bulma-scheme-main-ter) !important;
+  border-color: var(--bulma-border) !important;
+  border-width: 1px !important;
+  --bulma-button-border-width: 1px !important;
+  --bulma-button-outer-shadow-alpha: 0 !important;
+  color: var(--bulma-text) !important;
+  z-index: auto !important;
+}
+.tool-addons .button.is-danger.is-outlined:not(:disabled):hover,
+.tool-addons .button.is-danger.is-outlined:not(:disabled):active,
+.tool-addons .button.is-danger.is-outlined:not(:disabled):focus,
+.tool-addons .button.is-danger.is-outlined:not(:disabled).is-hovered,
+.tool-addons .button.is-danger.is-outlined:not(:disabled).is-focused,
+.tool-addons .button.is-danger.is-outlined:not(:disabled).is-active {
+  background: #fef2f2 !important;
+  border-color: var(--bulma-danger) !important;
+  border-width: 1px !important;
+  --bulma-button-border-width: 1px !important;
+  --bulma-button-outer-shadow-alpha: 0 !important;
+  color: var(--bulma-danger) !important;
+  z-index: auto !important;
+}
+.level-right .field {
+  margin-bottom: 0;
+}
+
+/* ============ Order control: Bulma Form addons, as documented ============
+   Joined control rule: the button must stay flat and level with the
+   input. No shadow, no hover lift, no hover shadow - hover is only
+   a background / border change, otherwise the join breaks visually. */
+.field.has-addons {
+  align-items: stretch;
+}
+.field.has-addons .control {
+  align-self: stretch;
+  display: flex;
+}
+.field.has-addons .control .input,
+.field.has-addons .control .button {
+  height: 100%;
+}
+.field.has-addons .button {
+  box-shadow: none !important;
+  transform: none !important;
+}
+.field.has-addons .button:not(:disabled):hover,
+.field.has-addons .button:not(:disabled):active {
+  box-shadow: none !important;
+  transform: none !important;
+  background: var(--bulma-scheme-main-ter);
+  border-color: var(--bulma-border);
+}
+/* Primary button inside has-addons (savebar): same flat/no-shadow
+   rule, but keep primary teal + white text, hover dark teal only. */
+.field.has-addons .button.is-primary {
+  box-shadow: none !important;
+  transform: none !important;
+}
+.field.has-addons .button.is-primary:not(:disabled):hover,
+.field.has-addons .button.is-primary:not(:disabled):active {
+  background: #0b5f58 !important;
+  border-color: #0b5f58 !important;
+  color: #fff !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+.order-control {
+  flex: 0 0 80px;
+  width: 80px;
+}
+.order-control .input {
+  width: 100%;
+  text-align: center;
+}
+
+/* ============ Footer: quiet, separated ============ */
+.footer {
+  background: transparent;
+  border-top: 1px solid var(--bulma-border-weak);
+  color: var(--bulma-text-weak);
+}
+
+/* ============ Theme switch: quiet three-symbol segmented group,
+   inside the content container ============
+   Why not fixed top-right of the screen: on a wide PC the screen
+   corner is hundreds of pixels away from the centred content
+   column, so the button looked detached. Now the group is
+   absolutely positioned at the top-right of .site-container /
+   .edit-container itself, so its right edge lines up with the
+   cards' right edge on every screen size. It takes no layout
+   space: on the homepage it sits beside the centred title, and
+   on the edit page it sits in the container's 44px top padding
+   above the first card.
+   Deliberately low-key: only 30px tall, no shadow on the track,
+   muted icons, and the sliding pill is just the card colour, so
+   the control reads as a small utility, not a primary action.
+   The pill slides by CSS transition on the group's data-active
+   attribute (light 2px, dark 32px, system 62px: three 30px
+   buttons plus 2px padding). It only transitions once the group
+   has the ready class, so it does not slide on page load. */
+.theme-switch {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 40;
+}
+.theme-switch-group {
+  position: relative;
+  display: flex;
+  height: 30px;
+  padding: 2px;
+  border: 1px solid var(--bulma-border);
+  border-radius: 9999px;
+  background: var(--bulma-scheme-main-ter);
+  box-shadow: none;
+}
+.theme-switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 30px;
+  height: 26px;
+  border-radius: 9999px;
+  background: var(--bulma-scheme-main-bis);
+  border: 1px solid var(--bulma-border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  z-index: 0;
+}
+.theme-switch-group[data-active="dark"] .theme-switch-thumb {
+  left: 32px;
+}
+.theme-switch-group[data-active="system"] .theme-switch-thumb {
+  left: 62px;
+}
+.theme-switch-group.ready .theme-switch-thumb {
+  transition: left 0.25s ease;
+}
+.theme-switch-group button {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--bulma-text-weak);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.55;
+}
+.theme-switch-group button:hover {
+  color: var(--bulma-text);
+}
+.theme-switch-group button.is-active {
+  color: var(--bulma-text-strong);
+  opacity: 1;
+}
+.theme-switch-group button:focus-visible {
+  outline: 2px solid var(--bulma-primary);
+  outline-offset: 2px;
+}
+
+/* ============ Dark overrides for the few remaining light tints ============
+   Everything that uses Bulma / scheme variables above already
+   switches with [data-theme="dark"]. These are the hardcoded light
+   tints left in the light rules (danger hover, add buttons, card
+   accents, focus ring, notifications, tool delete hover), each
+   given a soft dark equivalent. No prefers-color-scheme block here:
+   see the dark block comment at the top of this file. */
+[data-theme="dark"] .card-header {
+  background: linear-gradient(90deg, rgba(45, 212, 191, 0.14), rgba(45, 212, 191, 0) 72%);
+}
+[data-theme="dark"] .card-header::before {
+  background: linear-gradient(180deg, #2dd4bf, #e5a83b);
+}
+[data-theme="dark"] .site-container > .title::after {
+  background: linear-gradient(90deg, #2dd4bf, #e5a83b);
+}
+[data-theme="dark"] .footer {
+  color: var(--bulma-text-weak);
+}
+[data-theme="dark"] .detail .has-text-danger,
+[data-theme="dark"] .preview .has-text-danger {
+  color: #fca5a5 !important;
+}
+[data-theme="dark"] details[open] summary {
+  color: var(--theme-link);
+}
+[data-theme="dark"] details[open] summary::after {
+  border-color: #2a5a55;
+}
+[data-theme="dark"] .button.is-danger.is-outlined:hover,
+[data-theme="dark"] .buttons.are-small .button.is-danger.is-outlined:hover {
+  background: #3a2323;
+  border-color: #7a3a3a;
+  color: #f0a0a0;
+}
+[data-theme="dark"] .tool-addons .button.is-danger.is-outlined:not(:disabled):hover,
+[data-theme="dark"] .tool-addons .button.is-danger.is-outlined:not(:disabled):active,
+[data-theme="dark"] .tool-addons .button.is-danger.is-outlined:not(:disabled):focus {
+  background: #3a2323 !important;
+  border-color: var(--bulma-danger) !important;
+  color: var(--bulma-danger) !important;
+}
+[data-theme="dark"] #addBtn,
+[data-theme="dark"] #addFaqBtn {
+  background: #1f3d3a;
+  border-color: #2a5a55;
+  color: #8ad8cc;
+}
+[data-theme="dark"] #addBtn:hover,
+[data-theme="dark"] #addFaqBtn:hover {
+  background: #234e4a;
+  border-color: #35706a;
+}
+[data-theme="dark"] .input:focus,
+[data-theme="dark"] .textarea:focus,
+[data-theme="dark"] .select select:focus,
+[data-theme="dark"] .input:focus-visible,
+[data-theme="dark"] .textarea:focus-visible {
+  box-shadow: 0 0 0 4px rgba(45, 212, 191, 0.25);
+}
+[data-theme="dark"] .notification.is-success {
+  background: #1f2e28;
+  color: #c8e6d5;
+  border-color: #2f4a3d;
+}
+[data-theme="dark"] .notification.is-danger {
+  background: #2e1f1f;
+  color: #f3c6c6;
+  border-color: #4a2a2a;
+}
+[data-theme="dark"] .savebar {
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
+}

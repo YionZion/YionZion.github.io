@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<script>
+/* Theme before first paint: read the stored choice (light / dark /
+   system, default system), and set data-theme on <html> so Bulma
+   and bulma-theme.css paint the right theme immediately, with no
+   light flash on a dark phone. System means: follow matchMedia,
+   and the main script below listens for system changes. */
+(function () {
+  try {
+    var choice = localStorage.getItem('ai-auto-pages-theme') || 'system';
+    var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var effective = choice === 'dark' ? 'dark' : choice === 'light' ? 'light' : (dark ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', effective);
+    document.documentElement.setAttribute('data-theme-choice', choice);
+  } catch (e) {}
+})();
+</script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>编辑</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="stylesheet" href="bulma.min.css">
+<link rel="stylesheet" href="bulma-theme.css?v=20261027-01">
+</head>
+<body class="edit">
+<section class="section edit-section">
+<div class="container is-max-tablet edit-container">
+<div class="theme-switch">
+  <div class="theme-switch-group" role="group" aria-label="切换主题" data-active="system">
+    <span class="theme-switch-thumb" aria-hidden="true"></span>
+    <button type="button" data-theme-choice="light" title="浅色" aria-label="浅色主题">☀</button>
+    <button type="button" data-theme-choice="dark" title="深色" aria-label="深色主题">🌙</button>
+    <button type="button" data-theme-choice="system" title="跟随系统" aria-label="跟随系统主题">🖥️</button>
+  </div>
+</div>
+  <div class="card mb-4">
+    <header class="card-header"><p class="card-header-title">基本设置</p></header>
+    <div class="card-content">
+      <div class="field">
+        <label class="label" for="fTitle">页面标题</label>
+        <div class="control"><input id="fTitle" class="input" type="text"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="productList"></div>
+
+  <div class="buttons mt-4 is-right">
+    <button id="addBtn" type="button" class="button">新增项目</button>
+    <button id="downloadBtn" type="button" class="button">下载 JSON 备份</button>
+  </div>
+
+  <div class="section-title">常见问题</div>
+  <div id="faqList"></div>
+  <div class="buttons mt-4 is-right">
+    <button id="addFaqBtn" type="button" class="button">新增常见问题</button>
+  </div>
+
+  <div id="status" class="notification mt-4">正在加载当前 JSON……</div>
+
+  <div class="card mt-4">
+    <header class="card-header"><p class="card-header-title">JSON 预览</p></header>
+    <div class="card-content">
+      <details>
+        <summary>查看当前 JSON（只读预览）</summary>
+        <pre id="jsonPreview" class="json-preview"></pre>
+      </details>
+    </div>
+  </div>
+</div>
+</section>
+
+<div class="savebar"><div class="container is-max-tablet savebar-inner">
+  <div class="field has-addons">
+    <p class="control is-expanded">
+      <input id="token" class="input" type="password" placeholder="令牌" autocomplete="off">
+    </p>
+    <p class="control">
+      <button id="saveBtn" type="button" class="button is-primary">保存并提交到仓库</button>
+    </p>
+  </div>
+</div></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const OWNER = 'AI-auto-pages';
+const REPO = 'ai-auto-pages.github.io';
+const BRANCH = 'main';
+const JSON_PATH = 'data/site.json';
+let data = null;
+let originalJsonText = '';
+
+function setStatus(msg, kind){
+  const el = $('status');
+  el.textContent = msg;
+  el.className = 'notification mt-4' + (kind === 'error' ? ' is-danger' : kind === 'ok' ? ' is-success' : '');
+}
+function decodeB64(b64){
+  const bin = atob(String(b64).replace(/\s/g,''));
+  const bytes = new Uint8Array(bin.length);
+  for (let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  return new TextDecoder('utf-8').decode(bytes);
+}
+function encodeB64(str){
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  const chunk = 0x8000;
+  for (let i=0;i<bytes.length;i+=chunk) bin += String.fromCharCode.apply(null, bytes.subarray(i, i+chunk));
+  return btoa(bin);
+}
+function apiUrl(){
+  return 'https://api.github.com/repos/' + OWNER + '/' + REPO + '/contents/' + JSON_PATH;
+}
+function collectFromForm(){
+  const products = [];
+  document.querySelectorAll('.product').forEach(el => {
+    products.push({
+      name: el.querySelector('.pName').value,
+      url: el.querySelector('.pUrl').value,
+      price: el.querySelector('.pPrice').value === '' ? 1 : Number(el.querySelector('.pPrice').value),
+      tips: el.querySelector('.pTips').value,
+    });
+  });
+  const faqs = [];
+  document.querySelectorAll('.faq').forEach(el => {
+    const faq = {};
+    faq['问题'] = el.querySelector('.fQuestion').value;
+    faq['回答'] = el.querySelector('.fAnswer').value;
+    faqs.push(faq);
+  });
+  return { title: $('fTitle').value, products: products, faqs: faqs };
+}
+function updatePreviewFor(el){
+  el.querySelector('.preview').innerHTML = el.querySelector('.pTips').value || '';
+}
+function updateOrderPlaceholders(){
+  document.querySelectorAll('.product').forEach((el, idx) => {
+    const input = el.querySelector('.orderInput');
+    if (input && document.activeElement !== input) input.placeholder = String(idx + 1);
+  });
+}
+function refreshPreview(){
+  try { $('jsonPreview').textContent = JSON.stringify(collectFromForm(), null, 2); } catch(e) {}
+  document.querySelectorAll('.product').forEach(updatePreviewFor);
+  document.querySelectorAll('.faq').forEach(el => { el.querySelector('.preview').innerHTML = el.querySelector('.fAnswer').value || ''; });
+  updateOrderPlaceholders();
+}
+function moveCardTo(card, targetIndex){
+  const list = $('productList');
+  const cards = Array.from(list.children);
+  const total = cards.length;
+  if (targetIndex < 0) targetIndex = 0;
+  if (targetIndex >= total) targetIndex = total - 1;
+  list.removeChild(card);
+  const remaining = Array.from(list.children);
+  if (targetIndex >= remaining.length) list.appendChild(card);
+  else list.insertBefore(card, remaining[targetIndex]);
+  refreshPreview();
+}
+document.addEventListener('input', e => { if (e.target.closest('.product') || e.target.closest('.faq') || e.target.id === 'fTitle') refreshPreview(); });
+function renderForm(){
+  if (!data) return;
+  $('fTitle').value = data.title || '';
+  const list = $('productList');
+  list.innerHTML = '';
+  (data.products || []).forEach((p) => {
+    const card = document.createElement('div');
+    card.className = 'card product mb-4';
+    card.innerHTML =
+      '<div class="card-content">' +
+      '<div class="level is-mobile"><div class="level-left"><div class="field has-addons"><p class="control order-control"><input class="input orderInput" type="number" min="1" max="999" size="3" inputmode="numeric" autocomplete="off"></p><p class="control"><button type="button" class="button orderBtn">确定</button></p></div></div><div class="level-right"><div class="field has-addons tool-addons"><p class="control"><button type="button" class="button is-small upBtn">上移</button></p><p class="control"><button type="button" class="button is-small downBtn">下移</button></p><p class="control"><button type="button" class="button is-small is-danger is-outlined delBtn">删除</button></p></div></div></div>' +
+      '<div class="field"><label class="label">名称</label><div class="control"><input class="input pName" type="text"></div></div>' +
+      '<div class="field"><label class="label">链接</label><div class="control"><input class="input pUrl" type="text" autocomplete="off"></div></div>' +
+      '<div class="field"><label class="label">价格</label><div class="control"><input class="input pPrice" type="number" step="any"></div></div>' +
+      '<div class="field"><label class="label">提示区</label><div class="control"><textarea class="textarea pTips"></textarea></div></div>' +
+      '<div class="preview-label">预览</div>' +
+      '<div class="preview"></div>' +
+      '</div>';
+    card.querySelector('.pName').value = p.name || '';
+    card.querySelector('.pUrl').value = p.url || '';
+    card.querySelector('.pPrice').value = (p.price ?? '');
+    card.querySelector('.pTips').value = p.tips || '';
+    card.querySelector('.delBtn').addEventListener('click', () => { if (confirm('确定删除这个项目吗？')) { card.remove(); refreshPreview(); } });
+    card.querySelector('.upBtn').addEventListener('click', () => { const prev = card.previousElementSibling; if (prev) { list.insertBefore(card, prev); refreshPreview(); } });
+    card.querySelector('.downBtn').addEventListener('click', () => { const next = card.nextElementSibling; if (next) { list.insertBefore(next, card); refreshPreview(); } });
+    const applyOrder = () => {
+      const total = list.children.length;
+      const raw = card.querySelector('.orderInput').value.trim();
+      const num = Number(raw);
+      if (!raw || !Number.isInteger(num) || num < 1 || num > total) { setStatus('请输入 1 到 ' + total + ' 之间的序号。', 'error'); card.querySelector('.orderInput').focus(); return; }
+      moveCardTo(card, num - 1);
+      card.querySelector('.orderInput').value = '';
+      setStatus('已排到第 ' + num + ' 位，点底部保存后才提交到仓库。', 'ok');
+    };
+    card.querySelector('.orderBtn').addEventListener('click', applyOrder);
+    card.querySelector('.orderInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyOrder(); } });
+    list.appendChild(card);
+  });
+  const faqList = $('faqList');
+  faqList.innerHTML = '';
+  (data.faqs || []).forEach((f) => {
+    const question = f['问题'] || f.question || '';
+    const answer = f['回答'] || f.answer || '';
+    const card = document.createElement('div');
+    card.className = 'card faq mb-4';
+    card.innerHTML =
+      '<div class="card-content">' +
+      '<div class="faq-head"><div class="field has-addons tool-addons"><p class="control"><button type="button" class="button is-small upBtn">上移</button></p><p class="control"><button type="button" class="button is-small downBtn">下移</button></p><p class="control"><button type="button" class="button is-small is-danger is-outlined delBtn">删除</button></p></div></div>' +
+      '<div class="field"><label class="label">问题</label><div class="control"><input class="input fQuestion" type="text"></div></div>' +
+      '<div class="field"><label class="label">回答</label><div class="control"><textarea class="textarea fAnswer"></textarea></div></div>' +
+      '<div class="preview-label">预览</div>' +
+      '<div class="preview"></div>' +
+      '</div>';
+    card.querySelector('.fQuestion').value = question;
+    card.querySelector('.fAnswer').value = answer;
+    card.querySelector('.delBtn').addEventListener('click', () => { if (confirm('确定删除这个常见问题吗？')) { card.remove(); refreshPreview(); } });
+    card.querySelector('.upBtn').addEventListener('click', () => { const prev = card.previousElementSibling; if (prev) { faqList.insertBefore(card, prev); refreshPreview(); } });
+    card.querySelector('.downBtn').addEventListener('click', () => { const next = card.nextElementSibling; if (next) { faqList.insertBefore(next, card); refreshPreview(); } });
+    faqList.appendChild(card);
+  });
+  refreshPreview();
+}
+async function loadFromPages(){
+  const res = await fetch('data/site.json?' + Date.now());
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  data = await res.json();
+  originalJsonText = JSON.stringify(data, null, 2);
+  renderForm();
+  setStatus('已加载当前 JSON。', 'ok');
+}
+$('addBtn').addEventListener('click', () => {
+  const current = document.querySelectorAll('.product').length ? collectFromForm() : (data || { title: $('fTitle').value, products: [] });
+  data = current;
+  if (!data.products) data.products = [];
+  data.products.push({ name: '', url: '', price: 1, tips: '' });
+  renderForm();
+});
+$('addFaqBtn').addEventListener('click', () => {
+  const current = (document.querySelectorAll('.product').length || document.querySelectorAll('.faq').length) ? collectFromForm() : (data || { title: $('fTitle').value, products: [], faqs: [] });
+  data = current;
+  if (!data.faqs) data.faqs = [];
+  data.faqs.push({ '问题': '', '回答': '' });
+  renderForm();
+});
+$('downloadBtn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(collectFromForm(), null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'site.json'; a.click(); URL.revokeObjectURL(a.href);
+});
+$('saveBtn').addEventListener('click', async () => {
+  const token = $('token').value.trim();
+  if (!token) { setStatus('请先填写令牌。', 'error'); $('token').focus(); return; }
+  const newData = collectFromForm();
+  if (!newData.products.length) { if (!confirm('项目列表为空，确定要提交一个空列表吗？')) return; }
+  for (let i=0;i<newData.products.length;i++){ if (!newData.products[i].name) { setStatus('第 ' + (i+1) + ' 个项目没有填写名称。', 'error'); return; } }
+  for (let i=0;i<newData.faqs.length;i++){ if (!newData.faqs[i]['问题']) { setStatus('第 ' + (i+1) + ' 个常见问题没有填写问题。', 'error'); return; } }
+  $('saveBtn').disabled = true;
+  setStatus('正在提交……');
+  try {
+    const getRes = await fetch(apiUrl() + '?ref=' + BRANCH, { headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json' } });
+    if (!getRes.ok) throw new Error('拿最新版本失败，HTTP ' + getRes.status);
+    const latest = await getRes.json();
+    const latestText = JSON.stringify(JSON.parse(decodeB64(latest.content)), null, 2);
+    if (latestText !== originalJsonText) {
+      if (!confirm('仓库里的最新版本和你加载时不一样。点确定表示用你现在编辑的内容覆盖最新版，点取消则先重新加载最新版再编辑。')) {
+        data = JSON.parse(decodeB64(latest.content)); originalJsonText = latestText; renderForm(); setStatus('已取消提交，并重新加载了最新版本。', 'error'); $('saveBtn').disabled = false; return;
+      }
+    }
+    const body = { message: 'Update data/site.json via edit page', content: encodeB64(JSON.stringify(newData, null, 2)), sha: latest.sha, branch: BRANCH };
+    const putRes = await fetch(apiUrl(), { method: 'PUT', headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const putJson = await putRes.json();
+    if (!putRes.ok) throw new Error('提交失败，HTTP ' + putRes.status + '：' + (putJson.message || '未知错误'));
+    originalJsonText = JSON.stringify(newData, null, 2);
+    data = newData;
+    setStatus('提交成功，顺序已保存到仓库。等 Pages 重新部署几分钟后，主页刷新才会显示新顺序：' + (putJson.commit && putJson.commit.html_url ? putJson.commit.html_url : '请在仓库提交记录里查看'), 'ok');
+  } catch(e) {
+    setStatus('提交失败：' + e.message, 'error');
+  } finally { $('saveBtn').disabled = false; }
+});
+loadFromPages().catch(e => setStatus('加载失败：' + e.message, 'error'));
+</script>
+<script>
+/* Theme switch: a quiet three-symbol segmented group. Choice
+   is stored (light / dark / system) and shared by both pages via
+   localStorage. System does not mean a CSS media query: it means
+   this script sets data-theme from matchMedia and updates it when
+   the system theme changes, so manual Light always wins over a
+   dark phone, and manual Dark always wins over a light phone.
+   The head script already set the first paint. The sliding pill
+   behind the active symbol moves by CSS transition on the
+   group's data-active attribute; the group only gets the ready
+   class after the first apply, so the pill does not slide on
+   page load. */
+(function () {
+  var KEY = 'ai-auto-pages-theme';
+  var root = document.querySelector('.theme-switch');
+  if (!root) return;
+  var group = root.querySelector('.theme-switch-group');
+  var items = group.querySelectorAll('button');
+  var media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  function effective(choice) {
+    if (choice === 'dark') return 'dark';
+    if (choice === 'light') return 'light';
+    return media && media.matches ? 'dark' : 'light';
+  }
+  function apply(choice) {
+    try { localStorage.setItem(KEY, choice); } catch (e) {}
+    document.documentElement.setAttribute('data-theme', effective(choice));
+    document.documentElement.setAttribute('data-theme-choice', choice);
+    group.setAttribute('data-active', choice);
+    items.forEach(function (b) {
+      b.classList.toggle('is-active', b.getAttribute('data-theme-choice') === choice);
+    });
+  }
+  items.forEach(function (b) {
+    b.addEventListener('click', function () { apply(b.getAttribute('data-theme-choice')); });
+  });
+  if (media && media.addEventListener) {
+    media.addEventListener('change', function () {
+      var choice = document.documentElement.getAttribute('data-theme-choice') || 'system';
+      if (choice === 'system') apply('system');
+    });
+  }
+  try { apply(localStorage.getItem(KEY) || 'system'); } catch (e) { apply('system'); }
+  group.classList.add('ready');
+})();
+</script>
+</body>
+</html>
