@@ -18,6 +18,23 @@
   } catch (e) {}
 })();
 </script>
+<script>
+/* Start loading the site data right now, in parallel with the two
+   stylesheets below (bulma.min.css is ~678 KB, the JSON is ~11 KB,
+   so the data is normally ready before the first styled paint and
+   the page never shows its empty skeleton). The main script at the
+   bottom reuses this promise instead of starting a second fetch.
+   The timestamp query stays, so edits saved via the edit page are
+   still visible immediately, with no cache staleness. */
+window.__siteData = fetch('data/site.json?' + Date.now()).then(function (res) {
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+});
+window.__siteData.catch(function () {});
+/* Safety net for the reveal gate in bulma-theme.css: whatever
+   happens below, the page is shown within 3 seconds. */
+setTimeout(function () { document.documentElement.classList.add('ready'); }, 3000);
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>妖者发电站</title>
 <meta name="description" content="妖者发电站是《被染绿的幸福》的支持页面，作者妖者。作者主页永久地址，防失联地址。">
@@ -51,10 +68,15 @@
 }
 </script>
 <link rel="icon" type="image/x-icon" href="favicon.ico">
+<noscript><style>html:not(.ready) .site-section { visibility: visible; } #loader { display: none; }</style></noscript>
 <link rel="stylesheet" href="bulma.min.css">
-<link rel="stylesheet" href="bulma-theme.css?v=20261027-01">
+<link rel="stylesheet" href="bulma-theme.css?v=20261030-03">
 </head>
 <body>
+<div id="loader" aria-hidden="true">
+  <div class="loader-ring"></div>
+  <div class="loader-title">妖者发电站</div>
+</div>
 <section class="section site-section">
 <div class="container is-max-tablet site-container">
 <div class="theme-switch">
@@ -114,9 +136,10 @@ let products = [];
 
 async function load(){
   try {
-    const res = await fetch('data/site.json?' + Date.now());
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
+    const data = await (window.__siteData || fetch('data/site.json?' + Date.now()).then(function (res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    }));
     if (data.title) { document.getElementById('siteTitle').textContent = data.title; document.title = data.title; }
     products = data.products || [];
     select.innerHTML = '<option value="">请选择</option>' + products.map((p, i) => '<option value="' + i + '">' + p.name + '</option>').join('');
@@ -141,6 +164,10 @@ async function load(){
     }
   } catch (e) {
     select.innerHTML = '<option value="">数据加载失败，请刷新重试</option>';
+  } finally {
+    /* Data is in (or has failed): show the finished page in one
+       paint, with the space-between layout already settled. */
+    document.documentElement.classList.add('ready');
   }
 }
 select.addEventListener('change', () => {
