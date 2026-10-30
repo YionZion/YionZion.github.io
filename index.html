@@ -148,7 +148,7 @@ select.addEventListener('change', () => {
   const p = idx >= 0 ? products[idx] : null;
   if (!p) { detail.classList.remove('show'); btn.disabled = true; btn.textContent = '请先选择'; return; }
   if (p.tips) { detail.classList.add('show'); detail.innerHTML = '<div>' + p.tips + '</div>'; } else { detail.classList.remove('show'); detail.innerHTML = ''; }
-  btn.disabled = false; btn.textContent = '去发电';
+  btn.disabled = false; btn.textContent = '购买(需要翻墙)';
 });
 btn.addEventListener('click', () => {
   const idx = select.value === '' ? -1 : Number(select.value);
