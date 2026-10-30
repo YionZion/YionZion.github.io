@@ -194,6 +194,74 @@
   }
 }
 
+/* ============ Reveal gate: page and data appear together ============
+   The wide layout above spreads the blocks over the full viewport
+   height with space-between, so if the short static skeleton were
+   painted first and data/site.json filled the FAQ card in a moment
+   later, every gap would be re-distributed and the middle content
+   would visibly jump (the refresh jitter). Instead the section
+   stays visibility:hidden - layout is still computed at full size,
+   only the paint is held back - until the main script has loaded
+   the data, populated the page and added .ready to <html> (see
+   index.html; the fetch already starts in <head>, in parallel with
+   the stylesheets, so in practice the gate opens at the same moment
+   the first paint would have happened). A 3s timer in the head
+   script and the noscript style in index.html are the safety nets,
+   so the page can never stay hidden. The edit page is unaffected:
+   it uses .edit-section, not .site-section. */
+html:not(.ready) .site-section {
+  visibility: hidden;
+}
+/* ============ Loading overlay: until the gate opens ============
+   A quiet overlay in the page's own colours, shown while the data
+   is on its way: a thin spinning ring in the header accent teal
+   over the site title. It is part of the first paint (the
+   stylesheets block rendering until they arrive, so it never
+   flashes unstyled), and it fades out when <html> gets .ready;
+   the gate's safety nets (3s timer, noscript) close it too, so it
+   can never get stuck on screen. */
+#loader {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background: var(--bulma-background);
+  transition: opacity 0.3s ease, visibility 0s linear 0.3s;
+}
+html.ready #loader {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.loader-ring {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 3px solid var(--bulma-border);
+  border-top-color: #0f766e;
+  animation: loaderSpin 0.8s linear infinite;
+}
+.loader-title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.35em;
+  text-indent: 0.35em;
+  color: var(--bulma-text-strong);
+}
+@keyframes loaderSpin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loader-ring {
+    animation-duration: 2.4s;
+  }
+}
+
+
 /* ============ Site title: solid ink for readability, with a centred
    teal-to-gold bar underneath echoing the card-header accent.
    Gradient text looked black/olive in screenshots and hurt contrast,
@@ -857,6 +925,9 @@ details > div p:last-child {
 }
 [data-theme="dark"] .site-container > .title::after {
   background: linear-gradient(90deg, #2dd4bf, #e5a83b);
+}
+[data-theme="dark"] .loader-ring {
+  border-top-color: #2dd4bf;
 }
 [data-theme="dark"] .footer {
   color: var(--bulma-text-weak);
