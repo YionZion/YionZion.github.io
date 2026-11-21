@@ -1,6 +1,6 @@
 {
   "title": "妖者发电站",
-  "notice": "<ul>\n  <li><strong>防失联永久地址：</strong><a href=\"https://yionzion.github.io\">https://yionzion.github.io</a></li>\n  <li>备用地址(基本可直连)：<a href=\"https://yionzion.onrender.com\">https://yionzion.onrender.com</a></li>\n  <li>原创不易，请大家支持作者！</li>\n</ul>",
+  "notice": "<ul>\n  <li><strong>防失联永久地址：</strong><a href=\"https://yionzion.github.io\">https://yionzion.github.io</a></li>\n  <li>备用地址(基本可直连)：<a href=\"https://yionzion.onrender.com\">https://yionzion.onrender.com</a></li>\n  <li>小铺地址：<a href=\"https://pixpu.com/yy-shop\">https://pixpu.com/yy-shop</a></li>\n  <li>原创不易，请大家支持作者！</li>\n</ul>",
   "products": [
     {
       "name": "染-30(3.5w)",
@@ -333,7 +333,7 @@
     },
     {
       "问题": "在哪下载？",
-      "回答": "拿到密码之后，记得回到这个页面，选择你要下载的项目。"
+      "回答": "拿到密码之后，记得<strong class=\"has-text-success\">回到这个页面</strong>，选择你要下载的项目。"
     }
   ]
 }
