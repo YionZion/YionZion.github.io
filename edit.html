@@ -22,7 +22,7 @@
 <title>编辑</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="stylesheet" href="bulma.min.css">
-<link rel="stylesheet" href="bulma-theme.css?v=20261122-01">
+<link rel="stylesheet" href="bulma-theme.css?v=20261122-02">
 </head>
 <body class="edit">
 <section class="section edit-section">
@@ -62,20 +62,6 @@
   </div>
   <div id="faqList"></div>
   <div class="ed-add"><button id="addFaqBtn" type="button" class="button">新增常见问题</button></div>
-
-  <div class="ed-head">
-    <div class="section-title">蓝奏云候选域名 <span id="lzCount" class="ed-count"></span></div>
-  </div>
-  <div class="card mb-4">
-    <div class="card-content">
-      <p class="help mt-0 mb-3">访客在主页选中带蓝奏云链接的项目后，可以点「开始测试」，在自己的网络下逐个试这些域名，能打开的直接点去下载。可一次粘贴多个，用空格、逗号或换行分开；粘贴完整链接也行，会自动取出域名。</p>
-      <div id="lzList" class="lz-chips"></div>
-      <div class="field has-addons mt-3 mb-0">
-        <p class="control is-expanded"><input id="lzInput" class="input" type="text" placeholder="例如 lanzoux.com" autocomplete="off" autocapitalize="off" spellcheck="false"></p>
-        <p class="control"><button id="lzAdd" type="button" class="button">添加</button></p>
-      </div>
-    </div>
-  </div>
 
   <div class="card mt-4">
     <header class="card-header"><p class="card-header-title">JSON</p></header>
@@ -165,10 +151,14 @@ function collectFromForm(){
     const faq = {};
     faq['问题'] = el.querySelector('.fQuestion').value;
     faq['回答'] = el.querySelector('.fAnswer').value;
+    if (el.classList.contains('is-lanzou')) {
+      faq.kind = 'lanzou';
+      faq.hidden = el.classList.contains('is-off');
+      faq.domains = Array.from(el.querySelectorAll('.lz-chip')).map(c => c.dataset.domain);
+    }
     faqs.push(faq);
   });
-  const lanzouDomains = Array.from(document.querySelectorAll('#lzList .lz-chip')).map(c => c.dataset.domain);
-  return { title: $('fTitle').value, notice: $('fNotice').value, products: products, faqs: faqs, lanzouDomains: lanzouDomains };
+  return { title: $('fTitle').value, notice: $('fNotice').value, products: products, faqs: faqs };
 }
 
 function autosize(ta){
@@ -405,23 +395,51 @@ function updateProductHead(el){
     : '还没配按钮，「链接」也为空：主页不显示购买按钮。';
 }
 
-/* ----- one FAQ ----- */
+/* ----- one FAQ -----
+   The FAQ with "kind": "lanzou" (蓝奏云打不开？) is special: it holds
+   the 蓝奏云 test and its candidate domains, so it cannot be deleted;
+   its ✕ is replaced by a 隐藏 / 显示 switch (hidden = not shown on the
+   home page). */
 function faqItem(f){
+  const special = f.kind === 'lanzou';
   const el = document.createElement('div');
-  el.className = 'ed-item faq';
+  el.className = 'ed-item faq' + (special ? ' is-lanzou' : '');
   el.innerHTML =
     '<div class="ed-row">' + HANDLE +
-      '<button type="button" class="ed-title" aria-expanded="false"><span class="ed-name"></span></button>' +
-      tools('i') +
+      '<button type="button" class="ed-title" aria-expanded="false"><span class="ed-name"></span><span class="ed-meta"></span></button>' +
+      (special
+        ? '<div class="field has-addons tool-addons ed-tools"><p class="control"><button type="button" class="button iHide"></button></p></div>'
+        : tools('i')) +
     '</div>' +
     '<div class="ed-body" hidden>' +
       '<div class="field"><label class="label">问题</label><div class="control"><input class="input fQuestion" type="text"></div></div>' +
       '<div class="field"><label class="label">回答</label><div class="control"><textarea class="textarea ed-code fAnswer" spellcheck="false"></textarea></div><div class="preview"></div></div>' +
+      (special
+        ? '<div class="field"><label class="label">蓝奏云候选域名 <span class="ed-sub lzCount"></span></label>' +
+            '<p class="help mt-0 mb-2">主页这个问答里有「测试」按钮：访客点击后，在自己的网络下同时测 6 个域名，测出 2 个能打开就停，只显示能打开的域名。可一次粘贴多个，用空格、逗号或换行分开；粘贴完整链接也行，会自动取出域名。</p>' +
+            '<div class="lz-chips lzList"></div>' +
+            '<div class="field has-addons mt-2 mb-0"><p class="control is-expanded"><input class="input lzInput" type="text" placeholder="例如 lanzoux.com" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="添加域名"></p>' +
+            '<p class="control"><button type="button" class="button lzAdd">添加</button></p></div></div>'
+        : '') +
     '</div>';
   el.querySelector('.fQuestion').value = f['问题'] || f.question || '';
   el.querySelector('.fAnswer').value = f['回答'] || f.answer || '';
   el.querySelector('.ed-title').addEventListener('click', () => setOpen(el, el.querySelector('.ed-body').hidden));
-  bindTools(el, 'i', '常见问题');
+  if (special) {
+    el.classList.toggle('is-off', !!f.hidden);
+    el.querySelector('.iHide').addEventListener('click', () => {
+      el.classList.toggle('is-off');
+      updateFaqHead(el);
+      changed();
+      setStatus(el.classList.contains('is-off') ? '已设为隐藏，主页不显示这个问答。保存后生效。' : '已设为显示。保存后生效。', 'ok');
+    });
+    const list = el.querySelector('.lzList');
+    (Array.isArray(f.domains) ? f.domains : []).forEach(d => list.appendChild(domainChip(String(d), false)));
+    el.querySelector('.lzAdd').addEventListener('click', () => addDomains(el));
+    el.querySelector('.lzInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addDomains(el); } });
+  } else {
+    bindTools(el, 'i', '常见问题');
+  }
   sortable(el, true);
   updateFaqHead(el);
   return el;
@@ -429,9 +447,17 @@ function faqItem(f){
 function updateFaqHead(el){
   el.querySelector('.ed-name').textContent = el.querySelector('.fQuestion').value.trim() || '（未填写问题）';
   el.querySelector('.preview').innerHTML = el.querySelector('.fAnswer').value || '';
+  if (!el.classList.contains('is-lanzou')) return;
+  const hidden = el.classList.contains('is-off');
+  const n = el.querySelectorAll('.lz-chip').length;
+  el.querySelector('.ed-meta').textContent = (hidden ? '已隐藏 · ' : '') + '蓝奏云测试 · ' + n + ' 个域名';
+  el.querySelector('.lzCount').textContent = '（' + n + '）';
+  const btn = el.querySelector('.iHide');
+  btn.textContent = hidden ? '显示' : '隐藏';
+  btn.title = hidden ? '在主页显示这个问答' : '在主页隐藏这个问答（这个问答不能删除）';
 }
 
-/* ----- 蓝奏云 candidate domains ----- */
+/* ----- 蓝奏云 candidate domains (chips in the special FAQ) ----- */
 function domainChip(domain, isNew){
   const chip = document.createElement('span');
   chip.className = 'lz-chip' + (isNew ? ' is-new' : '');
@@ -442,7 +468,13 @@ function domainChip(domain, isNew){
   del.textContent = '✕';
   del.title = '删除';
   del.setAttribute('aria-label', '删除 ' + domain);
-  del.addEventListener('click', () => { chip.remove(); changed(); setStatus('已删除 ' + domain + '，保存后生效。', 'ok'); });
+  del.addEventListener('click', () => {
+    const item = chip.closest('.faq');
+    chip.remove();
+    updateFaqHead(item);
+    changed();
+    setStatus('已删除 ' + domain + '，保存后生效。', 'ok');
+  });
   chip.appendChild(del);
   return chip;
 }
@@ -455,9 +487,9 @@ function normalizeDomain(raw){
   t = parts.slice(-2).join('.');
   return /^[a-z0-9-]+\.[a-z]{2,}$/.test(t) ? t : '';
 }
-function addDomains(){
-  const input = $('lzInput');
-  const list = $('lzList');
+function addDomains(item){
+  const input = item.querySelector('.lzInput');
+  const list = item.querySelector('.lzList');
   const have = new Set(Array.from(list.children).map(c => c.dataset.domain));
   const added = [], dup = [], bad = [];
   input.value.split(/[\s,，;；、]+/).filter(Boolean).forEach(raw => {
@@ -473,11 +505,10 @@ function addDomains(){
   if (added.length) parts.push('已添加 ' + added.join('、'));
   if (dup.length) parts.push('已存在 ' + dup.join('、'));
   if (bad.length) parts.push('无法识别 ' + bad.join('、'));
+  updateFaqHead(item);
   changed();
   setStatus(parts.join('；') + (added.length ? '。保存后生效。' : '。'), bad.length ? 'error' : 'ok');
 }
-$('lzAdd').addEventListener('click', addDomains);
-$('lzInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addDomains(); } });
 
 /* ---------- Render / refresh ---------- */
 function renderForm(){
@@ -490,10 +521,15 @@ function renderForm(){
   (data.products || []).forEach(p => list.appendChild(productItem(p)));
   const faqList = $('faqList');
   faqList.innerHTML = '';
-  (data.faqs || []).forEach(f => faqList.appendChild(faqItem(f)));
-  const lzList = $('lzList');
-  lzList.innerHTML = '';
-  (Array.isArray(data.lanzouDomains) ? data.lanzouDomains : []).forEach(d => lzList.appendChild(domainChip(String(d), false)));
+  /* The 蓝奏云 FAQ must exist: if the data has none marked, mark the
+     FAQ about 蓝奏云, or add one (hidden until filled in). */
+  const faqs = (data.faqs || []).slice();
+  if (!faqs.some(f => f.kind === 'lanzou')) {
+    const i = faqs.findIndex(f => /蓝奏云/.test(f['问题'] || ''));
+    if (i >= 0) faqs[i] = Object.assign({}, faqs[i], { kind: 'lanzou', hidden: false, domains: [] });
+    else faqs.push({ '问题': '蓝奏云打不开？', '回答': '', kind: 'lanzou', hidden: true, domains: [] });
+  }
+  faqs.forEach(f => faqList.appendChild(faqItem(f)));
   autosize($('fNotice'));
   baselineText = JSON.stringify(collectFromForm());
   refresh();
@@ -506,7 +542,6 @@ function refresh(){
   });
   $('productCount').textContent = '（' + products.length + '）';
   $('faqCount').textContent = '（' + document.querySelectorAll('.faq').length + '）';
-  $('lzCount').textContent = '（' + document.querySelectorAll('#lzList .lz-chip').length + '）';
   const current = collectFromForm();
   $('jsonPreview').textContent = JSON.stringify(current, null, 2);
   dirty = baselineText !== '' && JSON.stringify(current) !== baselineText;
@@ -524,7 +559,7 @@ function updateToggleAll(){
 
 document.addEventListener('input', e => {
   const t = e.target;
-  if (t.id === 'token' || t.id === 'lzInput' || t.classList.contains('orderInput')) return;
+  if (t.id === 'token' || t.classList.contains('lzInput') || t.classList.contains('orderInput')) return;
   const item = t.closest('.ed-item');
   if (item) { if (item.classList.contains('product')) updateProductHead(item); else updateFaqHead(item); }
   if (t.id === 'fNotice') $('noticePreview').innerHTML = t.value;
