@@ -85,15 +85,11 @@ setTimeout(function () { document.documentElement.classList.add('ready'); }, 300
 </div>
   <h1 id="siteTitle" class="title has-text-centered">妖者发电站</h1>
 
-  <div class="card mb-4">
+  <div class="card mb-4" id="noticeSection">
     <header class="card-header"><p class="card-header-title">说明</p></header>
     <div class="card-content">
       <div class="content">
-        <ul>
-          <li><strong>防失联，请认准此页面，建议收藏</strong></li>
-          <li>永久地址：<a href="https://yionzion.github.io">https://yionzion.github.io</a></li>
-          <li>原创不易，请大家支持作者！乐意的话，可以多支持几份。</li>
-        </ul>
+        <ul id="noticeList"></ul>
       </div>
     </div>
   </div>
@@ -109,7 +105,7 @@ setTimeout(function () { document.documentElement.classList.add('ready'); }, 300
         </div>
       </div>
       <div id="detail" class="detail"></div>
-      <button id="actionBtn" class="button is-primary is-fullwidth is-medium mt-4" disabled>请先选择</button>
+      <div id="actionBtns"><button type="button" class="button is-primary is-fullwidth is-medium mt-4" disabled>请先选择</button></div>
     </div>
   </div>
 
@@ -127,8 +123,35 @@ setTimeout(function () { document.documentElement.classList.add('ready'); }, 300
 <script>
 const select = document.getElementById('projectSelect');
 const detail = document.getElementById('detail');
-const btn = document.getElementById('actionBtn');
+const actionBtns = document.getElementById('actionBtns');
+const DEFAULT_BUTTON_TEXT = '购买(需要翻墙)';
 let products = [];
+
+/* Buttons for one project: its own "buttons" list when it has one;
+   otherwise (projects not yet re-configured) one default button to
+   the project's "url", exactly like before. */
+function buttonsFor(p){
+  const list = Array.isArray(p.buttons) ? p.buttons.filter(b => b && b.url) : [];
+  if (list.length) return list.map(b => ({ text: b.text || DEFAULT_BUTTON_TEXT, url: b.url }));
+  return p.url ? [{ text: DEFAULT_BUTTON_TEXT, url: p.url }] : [];
+}
+function renderButtons(p){
+  actionBtns.innerHTML = '';
+  if (!p) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'button is-primary is-fullwidth is-medium mt-4';
+    b.disabled = true; b.textContent = '请先选择';
+    actionBtns.appendChild(b);
+    return;
+  }
+  buttonsFor(p).forEach(cfg => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'button is-primary is-fullwidth is-medium mt-4';
+    b.textContent = cfg.text;
+    b.addEventListener('click', () => { window.open(cfg.url, '_blank'); });
+    actionBtns.appendChild(b);
+  });
+}
 
 async function load(){
   try {
@@ -137,6 +160,11 @@ async function load(){
       return res.json();
     }));
     if (data.title) { document.getElementById('siteTitle').textContent = data.title; document.title = data.title; }
+    const notices = Array.isArray(data.notices) ? data.notices.filter(n => n && String(n).trim()) : [];
+    const noticeList = document.getElementById('noticeList');
+    noticeList.innerHTML = '';
+    notices.forEach(n => { const li = document.createElement('li'); li.innerHTML = n; noticeList.appendChild(li); });
+    document.getElementById('noticeSection').style.display = notices.length ? '' : 'none';
     products = data.products || [];
     select.innerHTML = '<option value="">请选择</option>' + products.map((p, i) => '<option value="' + i + '">' + p.name + '</option>').join('');
     const faqs = data.faqs || [];
@@ -159,6 +187,7 @@ async function load(){
       });
     }
   } catch (e) {
+    document.getElementById('noticeSection').style.display = 'none';
     select.innerHTML = '<option value="">数据加载失败，请刷新重试</option>';
   } finally {
     /* Data is in (or has failed): show the finished page in one
@@ -169,16 +198,9 @@ async function load(){
 select.addEventListener('change', () => {
   const idx = select.value === '' ? -1 : Number(select.value);
   const p = idx >= 0 ? products[idx] : null;
-  if (!p) { detail.classList.remove('show'); btn.disabled = true; btn.textContent = '请先选择'; return; }
+  if (!p) { detail.classList.remove('show'); renderButtons(null); return; }
   if (p.tips) { detail.classList.add('show'); detail.innerHTML = '<div>' + p.tips + '</div>'; } else { detail.classList.remove('show'); detail.innerHTML = ''; }
-  btn.disabled = false; btn.textContent = '购买(需要翻墙)';
-});
-btn.addEventListener('click', () => {
-  const idx = select.value === '' ? -1 : Number(select.value);
-  const p = idx >= 0 ? products[idx] : null;
-  if (!p) return;
-  const target = p.url;
-  if (target) window.open(target, '_blank');
+  renderButtons(p);
 });
 load();
 </script>

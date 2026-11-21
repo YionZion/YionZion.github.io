@@ -23,6 +23,26 @@
 <meta name="robots" content="noindex, nofollow">
 <link rel="stylesheet" href="bulma.min.css">
 <link rel="stylesheet" href="bulma-theme.css?v=20261027-01">
+<style>
+/* Edit page only: one project's purchase buttons, each in a light
+   bordered box with its own up / down / delete tools. */
+.btn-item {
+  border: 1px solid var(--bulma-border-weak);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+.btn-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.btn-item-head .field { margin-bottom: 0; }
+.btn-item-title { font-size: 13px; color: var(--bulma-text-weak); }
+.btn-item .field:not(:last-child) { margin-bottom: 8px; }
+.btn-empty { font-size: 13px; color: var(--bulma-text-weak); margin-bottom: 10px; }
+</style>
 </head>
 <body class="edit">
 <section class="section edit-section">
@@ -45,6 +65,13 @@
     </div>
   </div>
 
+  <div class="section-title">说明</div>
+  <div id="noticeList"></div>
+  <div class="buttons mt-4 is-right">
+    <button id="addNoticeBtn" type="button" class="button">新增说明</button>
+  </div>
+
+  <div class="section-title">项目</div>
   <div id="productList"></div>
 
   <div class="buttons mt-4 is-right">
@@ -88,6 +115,7 @@ const $ = id => document.getElementById(id);
 const OWNER = 'YionZion';
 const REPO = 'YionZion.github.io';
 const BRANCH = 'master';
+const DEFAULT_BUTTON_TEXT = '购买(需要翻墙)';
 const JSON_PATH = 'data/site.json';
 let data = null;
 let originalJsonText = '';
@@ -114,13 +142,20 @@ function apiUrl(){
   return 'https://api.github.com/repos/' + OWNER + '/' + REPO + '/contents/' + JSON_PATH;
 }
 function collectFromForm(){
+  const notices = [];
+  document.querySelectorAll('.notice').forEach(el => { notices.push(el.querySelector('.nContent').value); });
   const products = [];
   document.querySelectorAll('.product').forEach(el => {
+    const buttons = [];
+    el.querySelectorAll('.btn-item').forEach(b => {
+      buttons.push({ text: b.querySelector('.bText').value, url: b.querySelector('.bUrl').value });
+    });
     products.push({
       name: el.querySelector('.pName').value,
       url: el.querySelector('.pUrl').value,
       price: el.querySelector('.pPrice').value === '' ? 1 : Number(el.querySelector('.pPrice').value),
       tips: el.querySelector('.pTips').value,
+      buttons: buttons,
     });
   });
   const faqs = [];
@@ -130,10 +165,38 @@ function collectFromForm(){
     faq['回答'] = el.querySelector('.fAnswer').value;
     faqs.push(faq);
   });
-  return { title: $('fTitle').value, products: products, faqs: faqs };
+  return { title: $('fTitle').value, notices: notices, products: products, faqs: faqs };
 }
 function updatePreviewFor(el){
   el.querySelector('.preview').innerHTML = el.querySelector('.pTips').value || '';
+}
+/* Number the button boxes of one project, and say what the home
+   page shows when the project has no buttons of its own. */
+function updateButtonsFor(el){
+  const items = el.querySelectorAll('.btn-item');
+  items.forEach((b, i) => { b.querySelector('.btn-item-title').textContent = '按钮 ' + (i + 1); });
+  const empty = el.querySelector('.btn-empty');
+  if (items.length) { empty.style.display = 'none'; return; }
+  empty.style.display = '';
+  const url = el.querySelector('.pUrl').value.trim();
+  empty.textContent = url
+    ? '还没有配置按钮：主页会显示一个默认的「' + DEFAULT_BUTTON_TEXT + '」按钮，跳转到上面的「链接」。'
+    : '还没有配置按钮，「链接」也为空：主页不会显示购买按钮。';
+}
+function addButtonItem(card, b){
+  const list = card.querySelector('.btnList');
+  const item = document.createElement('div');
+  item.className = 'btn-item';
+  item.innerHTML =
+    '<div class="btn-item-head"><span class="btn-item-title"></span><div class="field has-addons tool-addons"><p class="control"><button type="button" class="button is-small bUp">上移</button></p><p class="control"><button type="button" class="button is-small bDown">下移</button></p><p class="control"><button type="button" class="button is-small is-danger is-outlined bDel">删除</button></p></div></div>' +
+    '<div class="field"><label class="label is-small">按钮文字</label><div class="control"><input class="input bText" type="text"></div></div>' +
+    '<div class="field"><label class="label is-small">跳转地址</label><div class="control"><input class="input bUrl" type="text" autocomplete="off"></div></div>';
+  item.querySelector('.bText').value = b.text || '';
+  item.querySelector('.bUrl').value = b.url || '';
+  item.querySelector('.bDel').addEventListener('click', () => { if (confirm('确定删除这个按钮吗？')) { item.remove(); refreshPreview(); } });
+  item.querySelector('.bUp').addEventListener('click', () => { const prev = item.previousElementSibling; if (prev) { list.insertBefore(item, prev); refreshPreview(); } });
+  item.querySelector('.bDown').addEventListener('click', () => { const next = item.nextElementSibling; if (next) { list.insertBefore(next, item); refreshPreview(); } });
+  list.appendChild(item);
 }
 function updateOrderPlaceholders(){
   document.querySelectorAll('.product').forEach((el, idx) => {
@@ -145,6 +208,8 @@ function refreshPreview(){
   try { $('jsonPreview').textContent = JSON.stringify(collectFromForm(), null, 2); } catch(e) {}
   document.querySelectorAll('.product').forEach(updatePreviewFor);
   document.querySelectorAll('.faq').forEach(el => { el.querySelector('.preview').innerHTML = el.querySelector('.fAnswer').value || ''; });
+  document.querySelectorAll('.notice').forEach(el => { el.querySelector('.nPreviewItem').innerHTML = el.querySelector('.nContent').value || ''; });
+  document.querySelectorAll('.product').forEach(updateButtonsFor);
   updateOrderPlaceholders();
 }
 function moveCardTo(card, targetIndex){
@@ -159,10 +224,28 @@ function moveCardTo(card, targetIndex){
   else list.insertBefore(card, remaining[targetIndex]);
   refreshPreview();
 }
-document.addEventListener('input', e => { if (e.target.closest('.product') || e.target.closest('.faq') || e.target.id === 'fTitle') refreshPreview(); });
+document.addEventListener('input', e => { if (e.target.closest('.product') || e.target.closest('.faq') || e.target.closest('.notice') || e.target.id === 'fTitle') refreshPreview(); });
 function renderForm(){
   if (!data) return;
   $('fTitle').value = data.title || '';
+  const noticeList = $('noticeList');
+  noticeList.innerHTML = '';
+  (Array.isArray(data.notices) ? data.notices : []).forEach((n) => {
+    const card = document.createElement('div');
+    card.className = 'card notice mb-4';
+    card.innerHTML =
+      '<div class="card-content">' +
+      '<div class="faq-head"><div class="field has-addons tool-addons"><p class="control"><button type="button" class="button is-small upBtn">上移</button></p><p class="control"><button type="button" class="button is-small downBtn">下移</button></p><p class="control"><button type="button" class="button is-small is-danger is-outlined delBtn">删除</button></p></div></div>' +
+      '<div class="field"><label class="label">内容</label><div class="control"><textarea class="textarea nContent" rows="2"></textarea></div><p class="help">可以写 HTML，例如链接：&lt;a href="https://..."&gt;文字&lt;/a&gt;，不需要写样式。</p></div>' +
+      '<div class="preview-label">预览</div>' +
+      '<div class="content"><ul><li class="nPreviewItem"></li></ul></div>' +
+      '</div>';
+    card.querySelector('.nContent').value = n || '';
+    card.querySelector('.delBtn').addEventListener('click', () => { if (confirm('确定删除这条说明吗？')) { card.remove(); refreshPreview(); } });
+    card.querySelector('.upBtn').addEventListener('click', () => { const prev = card.previousElementSibling; if (prev) { noticeList.insertBefore(card, prev); refreshPreview(); } });
+    card.querySelector('.downBtn').addEventListener('click', () => { const next = card.nextElementSibling; if (next) { noticeList.insertBefore(next, card); refreshPreview(); } });
+    noticeList.appendChild(card);
+  });
   const list = $('productList');
   list.innerHTML = '';
   (data.products || []).forEach((p) => {
@@ -177,11 +260,22 @@ function renderForm(){
       '<div class="field"><label class="label">提示区</label><div class="control"><textarea class="textarea pTips"></textarea></div></div>' +
       '<div class="preview-label">预览</div>' +
       '<div class="preview"></div>' +
+      '<div class="field mt-5"><label class="label">按钮</label><div class="btn-empty"></div><div class="btnList"></div><button type="button" class="button is-small addBtnItem">新增按钮</button></div>' +
       '</div>';
     card.querySelector('.pName').value = p.name || '';
     card.querySelector('.pUrl').value = p.url || '';
     card.querySelector('.pPrice').value = (p.price ?? '');
     card.querySelector('.pTips').value = p.tips || '';
+    (Array.isArray(p.buttons) ? p.buttons : []).forEach(b => addButtonItem(card, b || {}));
+    card.querySelector('.addBtnItem').addEventListener('click', () => {
+      /* The first button starts as the default one the home page shows
+         now (same text, same link), so nothing changes until edited. */
+      const first = !card.querySelector('.btn-item');
+      addButtonItem(card, first ? { text: DEFAULT_BUTTON_TEXT, url: card.querySelector('.pUrl').value } : {});
+      refreshPreview();
+      const items = card.querySelectorAll('.btn-item');
+      items[items.length - 1].querySelector('.bText').focus();
+    });
     card.querySelector('.delBtn').addEventListener('click', () => { if (confirm('确定删除这个项目吗？')) { card.remove(); refreshPreview(); } });
     card.querySelector('.upBtn').addEventListener('click', () => { const prev = card.previousElementSibling; if (prev) { list.insertBefore(card, prev); refreshPreview(); } });
     card.querySelector('.downBtn').addEventListener('click', () => { const next = card.nextElementSibling; if (next) { list.insertBefore(next, card); refreshPreview(); } });
@@ -230,17 +324,20 @@ async function loadFromPages(){
   renderForm();
   setStatus('已加载当前 JSON。', 'ok');
 }
+$('addNoticeBtn').addEventListener('click', () => {
+  data = collectFromForm();
+  data.notices.push('');
+  renderForm();
+  const items = document.querySelectorAll('.notice .nContent');
+  if (items.length) items[items.length - 1].focus();
+});
 $('addBtn').addEventListener('click', () => {
-  const current = document.querySelectorAll('.product').length ? collectFromForm() : (data || { title: $('fTitle').value, products: [] });
-  data = current;
-  if (!data.products) data.products = [];
-  data.products.push({ name: '', url: '', price: 1, tips: '' });
+  data = collectFromForm();
+  data.products.push({ name: '', url: '', price: 1, tips: '', buttons: [] });
   renderForm();
 });
 $('addFaqBtn').addEventListener('click', () => {
-  const current = (document.querySelectorAll('.product').length || document.querySelectorAll('.faq').length) ? collectFromForm() : (data || { title: $('fTitle').value, products: [], faqs: [] });
-  data = current;
-  if (!data.faqs) data.faqs = [];
+  data = collectFromForm();
   data.faqs.push({ '问题': '', '回答': '' });
   renderForm();
 });
@@ -253,7 +350,14 @@ $('saveBtn').addEventListener('click', async () => {
   if (!token) { setStatus('请先填写令牌。', 'error'); $('token').focus(); return; }
   const newData = collectFromForm();
   if (!newData.products.length) { if (!confirm('项目列表为空，确定要提交一个空列表吗？')) return; }
-  for (let i=0;i<newData.products.length;i++){ if (!newData.products[i].name) { setStatus('第 ' + (i+1) + ' 个项目没有填写名称。', 'error'); return; } }
+  for (let i=0;i<newData.notices.length;i++){ if (!newData.notices[i].trim()) { setStatus('第 ' + (i+1) + ' 条说明没有填写内容。', 'error'); return; } }
+  for (let i=0;i<newData.products.length;i++){
+    if (!newData.products[i].name) { setStatus('第 ' + (i+1) + ' 个项目没有填写名称。', 'error'); return; }
+    const bs = newData.products[i].buttons;
+    for (let j=0;j<bs.length;j++){
+      if (!bs[j].text.trim() || !bs[j].url.trim()) { setStatus('第 ' + (i+1) + ' 个项目的第 ' + (j+1) + ' 个按钮没有填写完整（按钮文字和跳转地址都要填）。', 'error'); return; }
+    }
+  }
   for (let i=0;i<newData.faqs.length;i++){ if (!newData.faqs[i]['问题']) { setStatus('第 ' + (i+1) + ' 个常见问题没有填写问题。', 'error'); return; } }
   $('saveBtn').disabled = true;
   setStatus('正在提交……');
