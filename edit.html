@@ -42,6 +42,12 @@
 .btn-item-title { font-size: 13px; color: var(--bulma-text-weak); }
 .btn-item .field:not(:last-child) { margin-bottom: 8px; }
 .btn-empty { font-size: 13px; color: var(--bulma-text-weak); margin-bottom: 10px; }
+/* "新增说明" gets the same tint as the other add buttons
+   (#addBtn / #addFaqBtn in bulma-theme.css). */
+#addNoticeBtn { background: #f0fdfa; border-color: #99f6e4; color: #0f766e; font-weight: 700; }
+#addNoticeBtn:hover { background: #ccfbf1; border-color: #5eead4; }
+[data-theme="dark"] #addNoticeBtn { background: #1f3d3a; border-color: #2a5a55; color: #8ad8cc; }
+[data-theme="dark"] #addNoticeBtn:hover { background: #234e4a; border-color: #35706a; }
 </style>
 </head>
 <body class="edit">
