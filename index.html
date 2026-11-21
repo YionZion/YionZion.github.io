@@ -70,7 +70,7 @@ setTimeout(function () { document.documentElement.classList.add('ready'); }, 300
 <link rel="icon" type="image/x-icon" href="favicon.ico">
 <noscript><style>html:not(.ready) .site-section { visibility: visible; }</style></noscript>
 <link rel="stylesheet" href="bulma.min.css">
-<link rel="stylesheet" href="bulma-theme.css?v=20261121-02">
+<link rel="stylesheet" href="bulma-theme.css?v=20261121-03">
 </head>
 <body>
 <section class="section site-section">
@@ -135,6 +135,52 @@ actions.className = 'pick-actions';
 inner.appendChild(detail);
 inner.appendChild(actions);
 panel.appendChild(inner);
+/* The gliding block behind the chosen tile (see bulma-theme.css). */
+const indicator = document.createElement('div');
+indicator.className = 'pick-indicator';
+indicator.setAttribute('aria-hidden', 'true');
+function moveIndicator(animate){
+  if (reduceMotion) return;
+  if (current < 0) { indicator.classList.remove('is-on'); return; }
+  const t = tiles()[current];
+  if (!indicator.parentNode) grid.appendChild(indicator);
+  const box = 'translate(' + t.offsetLeft + 'px,' + t.offsetTop + 'px)';
+  const fresh = !indicator.classList.contains('is-on');
+  if (!animate || fresh) {
+    /* Not on screen yet (or a resize): jump into place, a little
+       smaller, then grow in with the same spring. */
+    indicator.classList.add('no-anim');
+    indicator.style.width = t.offsetWidth + 'px';
+    indicator.style.height = t.offsetHeight + 'px';
+    indicator.style.transform = box + (fresh ? ' scale(0.7)' : '');
+    void indicator.offsetWidth;
+    indicator.classList.remove('no-anim');
+    if (!fresh) return;
+  }
+  indicator.style.width = t.offsetWidth + 'px';
+  indicator.style.height = t.offsetHeight + 'px';
+  indicator.style.transform = box;
+  indicator.classList.add('is-on');
+  indicator.classList.remove('is-landing'); void indicator.offsetWidth; indicator.classList.add('is-landing');
+}
+/* A small burst of sparks from the tapped tile. */
+function burst(t){
+  if (reduceMotion) return;
+  const cx = t.offsetLeft + t.offsetWidth / 2, cy = t.offsetTop + t.offsetHeight / 2;
+  const n = 12, rx = t.offsetWidth / 2 + 18, ry = t.offsetHeight / 2 + 16;
+  for (let k = 0; k < n; k++) {
+    const a = (k / n) * Math.PI * 2 + Math.random() * 0.4;
+    const d = 0.75 + Math.random() * 0.45;
+    const sp = document.createElement('span');
+    sp.className = 'pick-spark';
+    sp.style.left = cx + 'px';
+    sp.style.top = cy + 'px';
+    sp.style.setProperty('--dx', (Math.cos(a) * rx * d).toFixed(1) + 'px');
+    sp.style.setProperty('--dy', (Math.sin(a) * ry * d).toFixed(1) + 'px');
+    sp.addEventListener('animationend', () => sp.remove());
+    grid.appendChild(sp);
+  }
+}
 let motionTimer = 0;
 function playPanel(cls, ms){
   if (reduceMotion) return;
@@ -185,11 +231,15 @@ function choose(idx){
     const on = i === current;
     t.classList.toggle('is-selected', on);
     t.setAttribute('aria-expanded', on ? 'true' : 'false');
+    if (on) { t.style.setProperty('--rx', '0deg'); t.style.setProperty('--ry', '0deg'); }
   });
+  grid.classList.toggle('has-selection', current >= 0);
   if (current < 0) {
+    moveIndicator(true);
     if (reduceMotion) panel.remove(); else playPanel('is-leaving', 180);
     return;
   }
+  burst(tiles()[current]);
   const p = products[current];
   if (p.tips) { detail.innerHTML = '<div>' + p.tips + '</div>'; detail.classList.add('show'); }
   else { detail.innerHTML = ''; detail.classList.remove('show'); }
@@ -204,6 +254,7 @@ function choose(idx){
     actions.appendChild(b);
   });
   const moved = placePanel();
+  moveIndicator(true);
   /* New row: the panel unfolds. Same row: it stays open, the notch
      slides to the new tile and only the content changes. */
   playPanel(moved || !wasOpen ? 'is-entering' : 'is-swapping', 700);
@@ -216,7 +267,7 @@ function choose(idx){
   }, reduceMotion ? 0 : 300);
 }
 let resizeFrame = 0;
-window.addEventListener('resize', () => { cancelAnimationFrame(resizeFrame); resizeFrame = requestAnimationFrame(placePanel); });
+window.addEventListener('resize', () => { cancelAnimationFrame(resizeFrame); resizeFrame = requestAnimationFrame(() => { placePanel(); moveIndicator(false); }); });
 
 /* Tile effects: a soft light that follows the pointer, a slight 3D
    tilt (mouse only), and a ripple from the tap point. None of them
@@ -227,7 +278,7 @@ function setupTile(t){
     const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
     t.style.setProperty('--mx', (x * 100).toFixed(1) + '%');
     t.style.setProperty('--my', (y * 100).toFixed(1) + '%');
-    if (finePointer && !reduceMotion) {
+    if (finePointer && !reduceMotion && !t.classList.contains('is-selected')) {
       t.style.setProperty('--rx', ((0.5 - y) * 8).toFixed(2) + 'deg');
       t.style.setProperty('--ry', ((x - 0.5) * 8).toFixed(2) + 'deg');
     }
@@ -306,7 +357,7 @@ async function load(){
     /* Tiles rise in one after another on first load (about 0.6s in
        all; they can be clicked at once). */
     if (!reduceMotion && products.length) {
-      grid.classList.add('is-intro');
+      grid.classList.add('has-indicator', 'is-intro');
       setTimeout(() => grid.classList.remove('is-intro'), 1200);
     }
     const faqs = data.faqs || [];

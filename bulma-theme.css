@@ -936,22 +936,20 @@ details > div p:last-child {
 }
 
 /* ============ Home: project picker (tiles + inline panel) ============
-   Projects are tiles in a responsive grid (2 columns on a phone,
-   4 on desktop) instead of a dropdown: every project is visible at
-   once and one tap chooses it. The chosen tile's panel (tips and the
-   project's own buttons) unfolds inside the grid, right under the
-   chosen tile's row, with a notch pointing at the tile. Tap the
-   chosen tile again (or Esc) to close it.
-   Motion (all short, none blocks a click; all off under
-   prefers-reduced-motion):
-   - first load: tiles rise in one after another;
-   - hover: a soft light follows the pointer, mouse gets a slight 3D
-     tilt; tap: a ripple from the tap point and a small press;
-   - chosen tile: a slowly turning teal-to-gold gradient border and
-     a radio mark that pops in;
-   - panel: unfolds (height + fade), then tips and buttons rise in;
-     switching within the same row only slides the notch and swaps
-     the content; buttons get one light sweep. */
+   Projects are compact tiles in a responsive grid (2 columns on a
+   phone, 5 on desktop). One tap chooses a project; its panel (tips
+   and its own buttons) unfolds right under the chosen tile's row,
+   with a notch pointing at the tile. Tap again (or Esc) to close.
+   Chosen state: one gradient "indicator" block (.pick-indicator)
+   sits behind the chosen tile's text and glides from the previous
+   tile to the new one with a slight spring; a comet of light runs
+   around its edge; a small burst of sparks marks the tap; the other
+   tiles fade back so the choice stands out. Without motion (or
+   before the indicator exists) the chosen tile itself is filled
+   with the same gradient.
+   Other motion: tiles rise in on load, a light follows the pointer,
+   mouse gets a slight 3D tilt, taps ripple. All short, none blocks
+   a click, all off under prefers-reduced-motion. */
 @property --pick-angle {
   syntax: "<angle>";
   initial-value: 0deg;
@@ -960,14 +958,16 @@ details > div p:last-child {
 .pick-hint {
   font-size: 13px;
   color: var(--bulma-text-weak);
-  margin: -2px 0 12px;
+  margin: -2px 0 10px;
 }
 .pick-grid {
   --pick-glow: rgba(15, 118, 110, 0.16);
   --pick-ripple: rgba(15, 118, 110, 0.22);
+  --pick-fill: linear-gradient(135deg, #0f766e 0%, #13897c 55%, #c27c1e 130%);
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(146px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+  gap: 8px;
 }
 .pick-status {
   grid-column: 1 / -1;
@@ -979,17 +979,19 @@ details > div p:last-child {
   --lift: 0px;
   --press: 1;
   position: relative;
+  z-index: 1;
   isolation: isolate;
   overflow: hidden;
   display: flex;
   align-items: center;
-  min-height: 50px;
-  padding: 9px 36px 9px 14px;
-  text-align: left;
+  justify-content: center;
+  min-height: 42px;
+  padding: 7px 10px;
+  text-align: center;
   font: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.45;
+  font-size: 13.5px;
+  font-weight: 650;
+  line-height: 1.4;
   color: var(--bulma-text-strong);
   background: var(--bulma-scheme-main);
   border: 1px solid var(--bulma-border);
@@ -1000,7 +1002,7 @@ details > div p:last-child {
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   transform: perspective(700px) rotateX(var(--rx)) rotateY(var(--ry)) translateY(var(--lift)) scale(var(--press));
-  transition: transform 0.18s ease, border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.25s ease, color 0.2s ease;
+  transition: transform 0.18s ease, border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.25s ease, color 0.2s ease, opacity 0.25s ease, filter 0.25s ease;
 }
 .pick-tile.is-wide {
   grid-column: span 2;
@@ -1012,35 +1014,21 @@ details > div p:last-child {
   inset: 0;
   z-index: -1;
   border-radius: inherit;
-  background: radial-gradient(180px circle at var(--mx, 50%) var(--my, 50%), var(--pick-glow), transparent 65%);
+  background: radial-gradient(160px circle at var(--mx, 50%) var(--my, 50%), var(--pick-glow), transparent 65%);
   opacity: 0;
   transition: opacity 0.25s ease;
   pointer-events: none;
 }
-/* Radio mark at the right: empty ring, filled when chosen. */
-.pick-tile::after {
-  content: "";
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  width: 16px;
-  height: 16px;
-  margin-top: -8px;
-  border-radius: 50%;
-  border: 1.5px solid var(--bulma-border);
-  background: var(--bulma-scheme-main-bis);
-  transition: border-color 0.2s ease;
-}
 .pick-tile:hover {
   --lift: -2px;
   border-color: var(--bulma-primary);
-  box-shadow: 0 10px 24px rgba(60, 50, 35, 0.10);
+  box-shadow: 0 8px 20px rgba(60, 50, 35, 0.10);
 }
 .pick-tile:hover::before {
   opacity: 1;
 }
 .pick-tile:active {
-  --press: 0.97;
+  --press: 0.96;
 }
 .pick-tile:focus-visible {
   outline: 2px solid var(--bulma-primary);
@@ -1058,35 +1046,113 @@ details > div p:last-child {
 @keyframes pickRipple {
   to { transform: scale(1); opacity: 0; }
 }
+/* Chosen tile: white text on the gradient. */
 .pick-tile.is-selected {
-  color: var(--bulma-primary);
-  border: 2px solid transparent;
-  padding: 8px 35px 8px 13px; /* 1px less, so the 2px border does not shift the text */
-  background:
-    linear-gradient(var(--bulma-primary-soft), var(--bulma-primary-soft)) padding-box,
-    conic-gradient(from var(--pick-angle), #0f766e, #2dd4bf, #d97706, #0f766e) border-box;
-  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12), 0 10px 26px rgba(15, 118, 110, 0.20);
-  animation: pickSpin 4s linear infinite;
+  z-index: 3;
+  color: #fff;
+  border-color: transparent;
+  background: var(--pick-fill);
+  box-shadow: 0 10px 26px rgba(15, 118, 110, 0.35);
+  transform: scale(var(--press));
 }
 .pick-tile.is-selected::before {
+  display: none;
+}
+/* With the gliding indicator, the tile itself turns see-through and
+   the indicator under it carries the fill. */
+.pick-grid.has-indicator .pick-tile.is-selected {
+  background: transparent;
+  box-shadow: none;
+}
+/* The others fade back while one is chosen; hover brings one back. */
+.pick-grid.has-selection .pick-tile:not(.is-selected) {
+  opacity: 0.6;
+  filter: saturate(0.5);
+}
+.pick-grid.has-selection .pick-tile:not(.is-selected):hover,
+.pick-grid.has-selection .pick-tile:not(.is-selected):focus-visible {
+  opacity: 1;
+  filter: none;
+}
+.pick-indicator {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  border-radius: 10px;
+  background: var(--pick-fill);
+  box-shadow: 0 10px 28px rgba(15, 118, 110, 0.38);
+  pointer-events: none;
+  opacity: 0;
+  transform-origin: center;
+  transition:
+    transform 0.5s cubic-bezier(0.34, 1.4, 0.5, 1),
+    width 0.5s cubic-bezier(0.34, 1.4, 0.5, 1),
+    height 0.5s cubic-bezier(0.34, 1.4, 0.5, 1),
+    opacity 0.2s ease;
+}
+.pick-indicator.is-on {
   opacity: 1;
 }
-.pick-tile.is-selected::after {
-  border-color: var(--bulma-primary);
-  background: radial-gradient(circle, #fff 0 3px, var(--bulma-primary) 3.5px);
-  animation: pickPop 0.35s cubic-bezier(0.3, 1.6, 0.5, 1);
+.pick-indicator.no-anim {
+  transition: none;
+}
+/* A comet of light running around the indicator's edge. */
+.pick-indicator::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  padding: 2px;
+  border-radius: 12px;
+  background: conic-gradient(from var(--pick-angle), transparent 0 58%, rgba(94, 234, 212, 0.9) 78%, #fbbf24 88%, transparent 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  animation: pickSpin 2.4s linear infinite;
+}
+/* A light sweep across the indicator each time it lands. */
+.pick-indicator::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.45) 50%, transparent 70%) no-repeat;
+  background-size: 250% 100%;
+  background-position: 150% 0;
+  opacity: 0;
+}
+.pick-indicator.is-landing::after {
+  animation: pickLand 0.7s ease 0.25s;
+}
+@keyframes pickLand {
+  0% { opacity: 1; background-position: 150% 0; }
+  100% { opacity: 1; background-position: -60% 0; }
 }
 @keyframes pickSpin {
   to { --pick-angle: 360deg; }
 }
-@keyframes pickPop {
-  0% { transform: scale(0.4); }
-  100% { transform: scale(1); }
+.pick-spark {
+  position: absolute;
+  z-index: 4;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: #2dd4bf;
+  pointer-events: none;
+  animation: pickSpark 0.6s cubic-bezier(0.1, 0.7, 0.3, 1) forwards;
+}
+.pick-spark:nth-child(even) {
+  background: #f59e0b;
+}
+@keyframes pickSpark {
+  from { transform: translate(0, 0) scale(1); opacity: 1; }
+  to { transform: translate(var(--dx), var(--dy)) scale(0.2); opacity: 0; }
 }
 /* First load: tiles rise in one after another (--i set by script). */
 .pick-grid.is-intro .pick-tile {
   animation: pickIn 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-  animation-delay: calc(var(--i, 0) * 22ms);
+  animation-delay: calc(var(--i, 0) * 20ms);
 }
 @keyframes pickIn {
   from { opacity: 0; transform: translateY(10px) scale(0.98); }
@@ -1203,17 +1269,18 @@ details > div p:last-child {
 [data-theme="dark"] .pick-tile:hover {
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
 }
-[data-theme="dark"] .pick-tile.is-selected {
-  color: var(--theme-link);
-  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.14), 0 10px 26px rgba(0, 0, 0, 0.35);
+[data-theme="dark"] .pick-grid {
+  --pick-fill: linear-gradient(135deg, #0f766e 0%, #148f81 55%, #b7791f 130%);
 }
-[data-theme="dark"] .pick-tile.is-selected::after {
-  background: radial-gradient(circle, #201d1a 0 3px, var(--bulma-primary) 3.5px);
+[data-theme="dark"] .pick-indicator,
+[data-theme="dark"] .pick-tile.is-selected {
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45), 0 0 22px rgba(45, 212, 191, 0.18);
 }
 @media (prefers-reduced-motion: reduce) {
   .pick-tile,
   .pick-tile::before,
-  .pick-tile::after,
+  .pick-indicator,
+  .pick-indicator::before,
   .pick-panel,
   .pick-panel *,
   .pick-panel *::before,
@@ -1450,4 +1517,115 @@ details > div p:last-child {
     padding-left: 8px !important;
     padding-right: 8px !important;
   }
+}
+
+/* ============ Edit page: drag to reorder ============ */
+/* Grip: 2 x 3 dots, drawn. touch-action:none so a drag on the grip
+   moves the item instead of scrolling the page. */
+.ed-handle {
+  flex: none;
+  width: 22px;
+  height: 32px;
+  padding: 5px 4px;
+  border: 0;
+  border-radius: 6px;
+  background-color: transparent;
+  background-image: radial-gradient(circle, var(--bulma-text-weak) 1.4px, transparent 1.9px);
+  background-size: 7px 7px;
+  background-origin: content-box;
+  background-clip: content-box;
+  cursor: grab;
+  touch-action: none;
+  opacity: 0.75;
+}
+.ed-handle:hover {
+  background-color: var(--bulma-scheme-main-ter);
+  opacity: 1;
+}
+.ed-handle:focus-visible {
+  outline: 2px solid var(--bulma-primary);
+  outline-offset: 1px;
+}
+body.is-dragging-any,
+body.is-dragging-any * {
+  cursor: grabbing !important;
+  user-select: none;
+  -webkit-user-select: none;
+}
+/* The dragged item follows the pointer, lifted and slightly tilted. */
+.is-dragging {
+  position: fixed !important;
+  z-index: 60;
+  margin: 0 !important;
+  pointer-events: none;
+  background: var(--bulma-scheme-main-bis);
+  border-color: var(--bulma-primary) !important;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22) !important;
+  transform: rotate(-0.8deg) scale(1.02);
+}
+.ed-placeholder {
+  border: 2px dashed var(--bulma-primary);
+  border-radius: 12px;
+  background: var(--bulma-primary-soft);
+  margin-bottom: 8px;
+}
+.ed-btn > .ed-placeholder,
+.btnList > .ed-placeholder {
+  border-radius: 10px;
+}
+/* Compact list while dragging: one short line per item. */
+.is-sorting > .ed-item {
+  margin-bottom: 4px;
+  box-shadow: none;
+  border-color: var(--bulma-border);
+}
+.is-sorting > .ed-placeholder {
+  margin-bottom: 4px;
+}
+.is-sorting .ed-body {
+  display: none !important;
+}
+.is-sorting .ed-row {
+  padding: 2px 8px 2px 6px;
+  gap: 6px;
+}
+.is-sorting .ed-order,
+.is-sorting .ed-tools,
+.is-sorting .ed-meta {
+  display: none;
+}
+.is-sorting .ed-handle {
+  height: 26px;
+  padding: 2px 4px;
+}
+.is-sorting .ed-title {
+  padding: 3px 2px !important;
+}
+.is-sorting .ed-title::before {
+  display: none;
+}
+.is-sorting .ed-name {
+  font-size: 13.5px;
+  -webkit-line-clamp: 1 !important;
+  white-space: nowrap !important;
+}
+/* Button rows: grip in front. */
+.ed-btn {
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 2fr) auto;
+}
+.btnList > .ed-btn.is-dragging {
+  padding: 6px;
+  border: 1px solid var(--bulma-primary);
+  border-radius: 10px;
+}
+@media (max-width: 560px) {
+  .ed-btn {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .ed-btn .bUrl {
+    grid-column: 2 / -1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .is-dragging { transform: none; }
 }
