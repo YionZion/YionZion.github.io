@@ -1762,3 +1762,10 @@ details > div .lzt-msg {
   text-decoration: line-through;
   text-decoration-color: var(--bulma-border);
 }
+
+/* Bulma's .button sets display:inline-flex, which beats the browser's
+   own [hidden] rule; keep hidden buttons hidden (e.g. "移除打不开的"
+   before a test, "全部展开" with no projects). */
+.button[hidden] {
+  display: none !important;
+}
