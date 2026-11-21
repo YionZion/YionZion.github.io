@@ -70,7 +70,7 @@ setTimeout(function () { document.documentElement.classList.add('ready'); }, 300
 <link rel="icon" type="image/x-icon" href="favicon.ico">
 <noscript><style>html:not(.ready) .site-section { visibility: visible; }</style></noscript>
 <link rel="stylesheet" href="bulma.min.css">
-<link rel="stylesheet" href="bulma-theme.css?v=20261121-03">
+<link rel="stylesheet" href="bulma-theme.css?v=20261122-01">
 </head>
 <body>
 <section class="section site-section">
@@ -130,9 +130,12 @@ const inner = document.createElement('div');
 inner.className = 'pick-panel-inner';
 const detail = document.createElement('div');
 detail.className = 'detail';
+const lzWrap = document.createElement('div');
+lzWrap.className = 'lz-wrap';
 const actions = document.createElement('div');
 actions.className = 'pick-actions';
 inner.appendChild(detail);
+inner.appendChild(lzWrap);
 inner.appendChild(actions);
 panel.appendChild(inner);
 /* The gliding block behind the chosen tile (see bulma-theme.css). */
@@ -161,7 +164,6 @@ function moveIndicator(animate){
   indicator.style.height = t.offsetHeight + 'px';
   indicator.style.transform = box;
   indicator.classList.add('is-on');
-  indicator.classList.remove('is-landing'); void indicator.offsetWidth; indicator.classList.add('is-landing');
 }
 /* A small burst of sparks from the tapped tile. */
 function burst(t){
@@ -234,6 +236,7 @@ function choose(idx){
     if (on) { t.style.setProperty('--rx', '0deg'); t.style.setProperty('--ry', '0deg'); }
   });
   grid.classList.toggle('has-selection', current >= 0);
+  stopLanzouTest();
   if (current < 0) {
     moveIndicator(true);
     if (reduceMotion) panel.remove(); else playPanel('is-leaving', 180);
@@ -243,6 +246,11 @@ function choose(idx){
   const p = products[current];
   if (p.tips) { detail.innerHTML = '<div>' + p.tips + '</div>'; detail.classList.add('show'); }
   else { detail.innerHTML = ''; detail.classList.remove('show'); }
+  lzWrap.innerHTML = '';
+  if (lanzouDomains.length) {
+    const links = lanzouLinks(p.tips);
+    links.forEach(u => lzWrap.appendChild(lanzouBox(u, links.length > 1)));
+  }
   actions.innerHTML = '';
   buttonsFor(p).forEach((cfg, j) => {
     const b = document.createElement('button');
@@ -328,6 +336,140 @@ grid.addEventListener('keydown', e => {
   if (j >= 0) ts[j].focus();
 });
 
+/* ---------- 蓝奏云 domain test ----------
+   Lanzou serves the same file under many root domains, and networks
+   in mainland China block different ones. For the chosen project,
+   the visitor can test (on click, never automatically) which of the
+   candidate domains from site.json "lanzouDomains" their own network
+   can reach: each candidate replaces the root domain of the
+   project's lanzou link (sub-domain, path and query stay), and the
+   browser tries to connect. A no-cors fetch resolves when the server
+   answers at all and rejects on DNS failure, reset, TLS error or our
+   timeout, so the test means "can connect", without reading the
+   page. Reachable domains become ready-to-click links. No external
+   service is used; the list is only the one in site.json. */
+const LZ_TIMEOUT = 8000;
+const LZ_PARALLEL = 6;
+let lanzouDomains = [];
+let lzRun = null;
+function rootOf(host){ return host.toLowerCase().split('.').slice(-2).join('.'); }
+function isLanzou(u){ const r = rootOf(u.hostname); return /^lanz[a-z0-9]*\.com$/.test(r) || lanzouDomains.includes(r); }
+function lanzouLinks(tips){
+  const doc = new DOMParser().parseFromString(tips || '', 'text/html');
+  const found = [], seen = new Set();
+  const add = raw => {
+    let u;
+    try { u = new URL(String(raw).trim()); } catch (e) { return; }
+    if (!/^https?:$/.test(u.protocol) || !isLanzou(u)) return;
+    const key = u.pathname + u.search;
+    if (!seen.has(key)) { seen.add(key); found.push(u); }
+  };
+  doc.querySelectorAll('a[href]').forEach(a => add(a.getAttribute('href')));
+  (doc.body.textContent.match(/https?:\/\/[^\s<>"'，。；、）)]+/g) || []).forEach(add);
+  return found;
+}
+function withRoot(u, root){
+  const sub = u.hostname.toLowerCase().split('.').slice(0, -2);
+  return 'https://' + sub.concat(root).join('.') + u.pathname + u.search + u.hash;
+}
+function probe(url, stop){
+  const ctrl = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; ctrl.abort(); }, LZ_TIMEOUT);
+  const onStop = () => ctrl.abort();
+  stop.addEventListener('abort', onStop);
+  const t0 = performance.now();
+  return fetch(url, { mode: 'no-cors', cache: 'no-store', credentials: 'omit', redirect: 'follow', referrerPolicy: 'no-referrer', signal: ctrl.signal })
+    .then(() => ({ ok: true, ms: performance.now() - t0 }), () => ({ ok: false, timeout: timedOut }))
+    .finally(() => { clearTimeout(timer); stop.removeEventListener('abort', onStop); });
+}
+function stopLanzouTest(){ if (lzRun) { lzRun.abort(); lzRun = null; } }
+function lanzouBox(u, showPath){
+  const box = document.createElement('div');
+  box.className = 'lz';
+  box.innerHTML =
+    '<div class="lz-head">' +
+      '<div class="lz-title">蓝奏云打不开？<span class="lz-sub">测一测哪个域名在你的网络下能打开</span></div>' +
+      '<button type="button" class="button is-small lz-run">开始测试</button>' +
+    '</div>' +
+    (showPath ? '<div class="lz-path"></div>' : '') +
+    '<div class="lz-sum" hidden></div>' +
+    '<ul class="lz-grid" hidden></ul>';
+  if (showPath) box.querySelector('.lz-path').textContent = '链接：' + u.hostname + u.pathname;
+  box.querySelector('.lz-run').addEventListener('click', () => runLanzouTest(box, u));
+  return box;
+}
+async function runLanzouTest(box, u){
+  stopLanzouTest();
+  const run = new AbortController();
+  lzRun = run;
+  const runBtn = box.querySelector('.lz-run');
+  const sum = box.querySelector('.lz-sum');
+  const grid2 = box.querySelector('.lz-grid');
+  const own = rootOf(u.hostname);
+  const roots = lanzouDomains.includes(own) ? lanzouDomains.slice() : [own].concat(lanzouDomains);
+  runBtn.disabled = true;
+  runBtn.textContent = '测试中…';
+  sum.hidden = false;
+  grid2.hidden = false;
+  grid2.innerHTML = '';
+  const cells = roots.map(root => {
+    const li = document.createElement('li');
+    li.className = 'lz-item is-testing';
+    li.innerHTML = '<span class="lz-dot"></span><span class="lz-name"></span><span class="lz-state">测试中</span>';
+    li.querySelector('.lz-name').textContent = root;
+    grid2.appendChild(li);
+    return { root, li, url: withRoot(u, root), result: null };
+  });
+  let done = 0;
+  const paint = () => {
+    const ok = cells.filter(c => c.result && c.result.ok).length;
+    sum.textContent = done < cells.length
+      ? '正在测试 ' + done + ' / ' + cells.length + '，已找到 ' + ok + ' 个可用'
+      : (ok ? '共 ' + cells.length + ' 个域名，' + ok + ' 个在你这里能打开，点绿色的直接去下载（已按速度排序，★ 最快）' : '共 ' + cells.length + ' 个域名，都连不上。可以换个网络（如手机流量）再测，或用 mega 网盘');
+  };
+  paint();
+  let next = 0;
+  const worker = async () => {
+    while (next < cells.length && !run.signal.aborted) {
+      const c = cells[next++];
+      const r = await probe(c.url, run.signal);
+      if (run.signal.aborted) return;
+      c.result = r;
+      done++;
+      const li = c.li;
+      li.classList.remove('is-testing');
+      if (r.ok) {
+        li.classList.add('is-ok');
+        li.innerHTML = '';
+        const a = document.createElement('a');
+        a.href = c.url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.title = c.url;
+        a.innerHTML = '<span class="lz-dot"></span><span class="lz-name"></span><span class="lz-state"></span>';
+        a.querySelector('.lz-name').textContent = c.root;
+        a.querySelector('.lz-state').textContent = (r.ms / 1000).toFixed(1) + 's';
+        li.appendChild(a);
+      } else {
+        li.classList.add('is-fail');
+        li.querySelector('.lz-state').textContent = r.timeout ? '超时' : '连不上';
+      }
+      paint();
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(LZ_PARALLEL, cells.length) }, worker));
+  if (run.signal.aborted) return;
+  lzRun = null;
+  /* Done: reachable first, fastest first; the fastest is marked. */
+  cells.sort((a, b) => (b.result.ok - a.result.ok) || ((a.result.ms || 0) - (b.result.ms || 0)));
+  cells.forEach(c => grid2.appendChild(c.li));
+  const best = cells[0] && cells[0].result.ok ? cells[0].li : null;
+  if (best) { best.classList.add('is-best'); best.title = '最快'; }
+  runBtn.disabled = false;
+  runBtn.textContent = '重新测试';
+}
+
 async function load(){
   try {
     const data = await (window.__siteData || fetch('data/site.json?' + Date.now()).then(function (res) {
@@ -338,6 +480,7 @@ async function load(){
     const notice = typeof data.notice === 'string' ? data.notice.trim() : '';
     document.getElementById('noticeBody').innerHTML = notice;
     document.getElementById('noticeSection').style.display = notice ? '' : 'none';
+    lanzouDomains = (Array.isArray(data.lanzouDomains) ? data.lanzouDomains : []).map(d => String(d).trim().toLowerCase()).filter(Boolean);
     products = data.products || [];
     grid.innerHTML = '';
     if (!products.length) grid.innerHTML = '<p class="pick-status">暂无项目</p>';

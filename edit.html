@@ -22,7 +22,7 @@
 <title>编辑</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="stylesheet" href="bulma.min.css">
-<link rel="stylesheet" href="bulma-theme.css?v=20261121-03">
+<link rel="stylesheet" href="bulma-theme.css?v=20261122-01">
 </head>
 <body class="edit">
 <section class="section edit-section">
@@ -62,6 +62,20 @@
   </div>
   <div id="faqList"></div>
   <div class="ed-add"><button id="addFaqBtn" type="button" class="button">新增常见问题</button></div>
+
+  <div class="ed-head">
+    <div class="section-title">蓝奏云候选域名 <span id="lzCount" class="ed-count"></span></div>
+  </div>
+  <div class="card mb-4">
+    <div class="card-content">
+      <p class="help mt-0 mb-3">访客在主页选中带蓝奏云链接的项目后，可以点「开始测试」，在自己的网络下逐个试这些域名，能打开的直接点去下载。可一次粘贴多个，用空格、逗号或换行分开；粘贴完整链接也行，会自动取出域名。</p>
+      <div id="lzList" class="lz-chips"></div>
+      <div class="field has-addons mt-3 mb-0">
+        <p class="control is-expanded"><input id="lzInput" class="input" type="text" placeholder="例如 lanzoux.com" autocomplete="off" autocapitalize="off" spellcheck="false"></p>
+        <p class="control"><button id="lzAdd" type="button" class="button">添加</button></p>
+      </div>
+    </div>
+  </div>
 
   <div class="card mt-4">
     <header class="card-header"><p class="card-header-title">JSON</p></header>
@@ -153,7 +167,8 @@ function collectFromForm(){
     faq['回答'] = el.querySelector('.fAnswer').value;
     faqs.push(faq);
   });
-  return { title: $('fTitle').value, notice: $('fNotice').value, products: products, faqs: faqs };
+  const lanzouDomains = Array.from(document.querySelectorAll('#lzList .lz-chip')).map(c => c.dataset.domain);
+  return { title: $('fTitle').value, notice: $('fNotice').value, products: products, faqs: faqs, lanzouDomains: lanzouDomains };
 }
 
 function autosize(ta){
@@ -416,6 +431,54 @@ function updateFaqHead(el){
   el.querySelector('.preview').innerHTML = el.querySelector('.fAnswer').value || '';
 }
 
+/* ----- 蓝奏云 candidate domains ----- */
+function domainChip(domain, isNew){
+  const chip = document.createElement('span');
+  chip.className = 'lz-chip' + (isNew ? ' is-new' : '');
+  chip.dataset.domain = domain;
+  chip.textContent = domain;
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.textContent = '✕';
+  del.title = '删除';
+  del.setAttribute('aria-label', '删除 ' + domain);
+  del.addEventListener('click', () => { chip.remove(); changed(); setStatus('已删除 ' + domain + '，保存后生效。', 'ok'); });
+  chip.appendChild(del);
+  return chip;
+}
+/* "https://wwln.lanzoux.com/abc" / "wwln.lanzoux.com" / "LANZOUX.COM"
+   all become "lanzoux.com"; anything else is rejected. */
+function normalizeDomain(raw){
+  let t = String(raw).trim().toLowerCase().replace(/^[a-z]+:\/\//, '').split(/[\/?#:]/)[0];
+  const parts = t.split('.').filter(Boolean);
+  if (parts.length < 2) return '';
+  t = parts.slice(-2).join('.');
+  return /^[a-z0-9-]+\.[a-z]{2,}$/.test(t) ? t : '';
+}
+function addDomains(){
+  const input = $('lzInput');
+  const list = $('lzList');
+  const have = new Set(Array.from(list.children).map(c => c.dataset.domain));
+  const added = [], dup = [], bad = [];
+  input.value.split(/[\s,，;；、]+/).filter(Boolean).forEach(raw => {
+    const d = normalizeDomain(raw);
+    if (!d) bad.push(raw);
+    else if (have.has(d)) dup.push(d);
+    else { have.add(d); added.push(d); list.appendChild(domainChip(d, true)); }
+  });
+  if (!added.length && !dup.length && !bad.length) { input.focus(); return; }
+  input.value = bad.join(' ');
+  input.focus();
+  const parts = [];
+  if (added.length) parts.push('已添加 ' + added.join('、'));
+  if (dup.length) parts.push('已存在 ' + dup.join('、'));
+  if (bad.length) parts.push('无法识别 ' + bad.join('、'));
+  changed();
+  setStatus(parts.join('；') + (added.length ? '。保存后生效。' : '。'), bad.length ? 'error' : 'ok');
+}
+$('lzAdd').addEventListener('click', addDomains);
+$('lzInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addDomains(); } });
+
 /* ---------- Render / refresh ---------- */
 function renderForm(){
   if (!data) return;
@@ -428,6 +491,9 @@ function renderForm(){
   const faqList = $('faqList');
   faqList.innerHTML = '';
   (data.faqs || []).forEach(f => faqList.appendChild(faqItem(f)));
+  const lzList = $('lzList');
+  lzList.innerHTML = '';
+  (Array.isArray(data.lanzouDomains) ? data.lanzouDomains : []).forEach(d => lzList.appendChild(domainChip(String(d), false)));
   autosize($('fNotice'));
   baselineText = JSON.stringify(collectFromForm());
   refresh();
@@ -440,6 +506,7 @@ function refresh(){
   });
   $('productCount').textContent = '（' + products.length + '）';
   $('faqCount').textContent = '（' + document.querySelectorAll('.faq').length + '）';
+  $('lzCount').textContent = '（' + document.querySelectorAll('#lzList .lz-chip').length + '）';
   const current = collectFromForm();
   $('jsonPreview').textContent = JSON.stringify(current, null, 2);
   dirty = baselineText !== '' && JSON.stringify(current) !== baselineText;
@@ -457,7 +524,7 @@ function updateToggleAll(){
 
 document.addEventListener('input', e => {
   const t = e.target;
-  if (t.id === 'token' || t.classList.contains('orderInput')) return;
+  if (t.id === 'token' || t.id === 'lzInput' || t.classList.contains('orderInput')) return;
   const item = t.closest('.ed-item');
   if (item) { if (item.classList.contains('product')) updateProductHead(item); else updateFaqHead(item); }
   if (t.id === 'fNotice') $('noticePreview').innerHTML = t.value;

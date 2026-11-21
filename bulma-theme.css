@@ -1110,24 +1110,6 @@ details > div p:last-child {
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
   animation: pickSpin 2.4s linear infinite;
 }
-/* A light sweep across the indicator each time it lands. */
-.pick-indicator::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.45) 50%, transparent 70%) no-repeat;
-  background-size: 250% 100%;
-  background-position: 150% 0;
-  opacity: 0;
-}
-.pick-indicator.is-landing::after {
-  animation: pickLand 0.7s ease 0.25s;
-}
-@keyframes pickLand {
-  0% { opacity: 1; background-position: 150% 0; }
-  100% { opacity: 1; background-position: -60% 0; }
-}
 @keyframes pickSpin {
   to { --pick-angle: 360deg; }
 }
@@ -1213,7 +1195,9 @@ details > div p:last-child {
   animation: none;
 }
 .pick-panel.is-entering .detail,
-.pick-panel.is-swapping .detail {
+.pick-panel.is-swapping .detail,
+.pick-panel.is-entering .lz,
+.pick-panel.is-swapping .lz {
   animation: pickRise 0.34s cubic-bezier(0.2, 0.8, 0.2, 1) 0.04s both;
 }
 .pick-panel.is-entering .pick-actions .button,
@@ -1233,34 +1217,6 @@ details > div p:last-child {
 }
 .pick-actions:empty {
   display: none;
-}
-/* Buttons: one light sweep when they appear, and again on hover. */
-.pick-actions .button {
-  position: relative;
-  overflow: hidden;
-}
-.pick-actions .button::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -60%;
-  width: 40%;
-  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.35), transparent);
-  transform: skewX(-20deg);
-  pointer-events: none;
-}
-.pick-panel.is-entering .pick-actions .button::after,
-.pick-panel.is-swapping .pick-actions .button::after,
-.pick-actions .button:hover::after {
-  animation: pickSweep 0.8s ease 0.3s;
-}
-.pick-actions .button:hover::after {
-  animation-delay: 0s;
-}
-@keyframes pickSweep {
-  from { left: -60%; }
-  to { left: 130%; }
 }
 [data-theme="dark"] .pick-grid {
   --pick-glow: rgba(45, 212, 191, 0.14);
@@ -1628,4 +1584,216 @@ body.is-dragging-any * {
 }
 @media (prefers-reduced-motion: reduce) {
   .is-dragging { transform: none; }
+}
+
+/* ============ Home: 蓝奏云 domain test (inside the project panel) ============
+   One box per lanzou link of the chosen project. Before the test:
+   a title and a "开始测试" button. During / after: one chip per
+   candidate domain with a status dot: testing (pulsing), reachable
+   (green, a real link with its time), unreachable or timed out
+   (grey, not a link). After the test, reachable ones move to the
+   front, fastest first, and the fastest is marked. */
+.lz {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--bulma-border);
+  border-radius: 10px;
+  background: var(--bulma-scheme-main-bis);
+}
+.lz-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.lz-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--bulma-text-strong);
+}
+.lz-sub {
+  display: block;
+  font-weight: 400;
+  font-size: 12.5px;
+  color: var(--bulma-text-weak);
+}
+.lz-run {
+  flex: none;
+  font-weight: 650;
+  background: var(--bulma-primary-soft);
+  border-color: var(--bulma-primary);
+  color: var(--bulma-primary);
+}
+.lz-run:not(:disabled):hover {
+  background: var(--bulma-primary);
+  color: #fff;
+}
+.lz-path {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--bulma-text-weak);
+  overflow-wrap: anywhere;
+}
+.lz-sum {
+  margin: 10px 0 8px;
+  font-size: 13px;
+  color: var(--bulma-text);
+}
+.lz-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  gap: 6px;
+}
+.lz-item,
+.lz-item a {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 1.3;
+}
+.lz-item {
+  padding: 6px 7px;
+  border: 1px solid var(--bulma-border-weak);
+  border-radius: 8px;
+  background: var(--bulma-scheme-main);
+  color: var(--bulma-text-weak);
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+.lz-item a {
+  flex: 1;
+  margin: -6px -7px;
+  padding: 6px 7px;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 8px;
+}
+.lz-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lz-state {
+  font-variant-numeric: tabular-nums;
+}
+.lz-state {
+  flex: none;
+  font-size: 11.5px;
+}
+.lz-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--bulma-border);
+}
+.lz-item.is-testing .lz-dot {
+  background: var(--bulma-warning);
+  animation: lzPulse 0.9s ease-in-out infinite;
+}
+@keyframes lzPulse {
+  50% { opacity: 0.25; transform: scale(0.7); }
+}
+.lz-item.is-ok {
+  border-color: var(--bulma-success);
+  background: var(--bulma-success-soft, var(--bulma-primary-soft));
+  color: var(--bulma-success);
+  font-weight: 650;
+}
+.lz-item.is-ok .lz-dot {
+  background: var(--bulma-success);
+}
+.lz-item.is-ok a:hover {
+  background: var(--bulma-success);
+  color: #fff;
+}
+.lz-item.is-ok a:hover .lz-dot {
+  background: #fff;
+}
+.lz-item.is-ok a:focus-visible {
+  outline: 2px solid var(--bulma-success);
+  outline-offset: 2px;
+}
+.lz-item.is-fail {
+  opacity: 0.7;
+}
+.lz-item.is-fail .lz-name {
+  text-decoration: line-through;
+  text-decoration-color: var(--bulma-border);
+}
+.lz-item.is-best {
+  box-shadow: 0 0 0 2px var(--bulma-success);
+}
+.lz-item.is-best .lz-state::before {
+  content: "★ ";
+  color: #d97706;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lz-item.is-testing .lz-dot { animation: none; }
+}
+
+/* ============ Edit page: 蓝奏云 candidate domains as chips ============ */
+.lz-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.lz-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 4px 3px 10px;
+  border: 1px solid var(--bulma-border);
+  border-radius: 9999px;
+  background: var(--bulma-scheme-main);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  color: var(--bulma-text);
+}
+.lz-chip.is-new {
+  animation: edFlash 1s ease;
+}
+.lz-chip button {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--bulma-text-weak);
+  font-size: 12px;
+  line-height: 22px;
+  cursor: pointer;
+}
+.lz-chip button:hover {
+  background: #fef2f2;
+  color: var(--bulma-danger);
+}
+[data-theme="dark"] .lz-chip button:hover {
+  background: #3a2323;
+}
+/* Phone: two narrow columns, so the time / status goes under the
+   domain and the full domain name always shows. */
+@media (max-width: 560px) {
+  .lz-item,
+  .lz-item a {
+    flex-wrap: wrap;
+    row-gap: 0;
+  }
+  .lz-name {
+    flex: 1 1 calc(100% - 13px);
+    overflow: visible;
+    text-overflow: clip;
+  }
+  .lz-state {
+    flex-basis: 100%;
+    padding-left: 13px;
+    font-size: 11px;
+  }
 }
