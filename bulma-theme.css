@@ -1633,22 +1633,42 @@ details > div .lzt-msg {
   outline: 2px solid var(--bulma-success);
   outline-offset: 2px;
 }
-.lzt-chip.is-copied::after {
-  content: "已复制";
-  position: absolute;
+.lzt-chip.is-active {
+  background: var(--bulma-success);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+.lzt-chip.is-active::before {
+  content: "✓ ";
+}
+/* Toast after switching the lanzou domain: bottom centre, above
+   everything, fades in and out. */
+.site-toast {
+  position: fixed;
   left: 50%;
-  bottom: calc(100% + 6px);
-  transform: translateX(-50%);
-  padding: 2px 8px;
-  border-radius: 6px;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  z-index: 100;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  padding: 10px 16px;
+  border-radius: 12px;
   background: var(--bulma-text-strong);
   color: var(--bulma-scheme-main);
-  font-size: 12px;
-  font-weight: 500;
-  white-space: nowrap;
+  font-size: 14px;
+  line-height: 1.5;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 12px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.site-toast.is-shown {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 @media (prefers-reduced-motion: reduce) {
   .lzt-chip { animation: none; }
+  .site-toast { transition: none; }
 }
 
 /* ============ Edit page: 蓝奏云 candidate domains as chips ============ */
@@ -1668,6 +1688,51 @@ details > div .lzt-msg {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12.5px;
   color: var(--bulma-text);
+}
+.lz-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 10px;
+}
+.lz-summary {
+  font-size: 13px;
+  color: var(--bulma-text-weak);
+  font-variant-numeric: tabular-nums;
+}
+.lz-tools .lzPrune {
+  margin-left: auto;
+}
+.lz-chip-state {
+  font-family: inherit;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.lz-chip-state:not(:empty) {
+  margin-left: 4px;
+}
+.lz-chip.is-testing {
+  border-color: var(--bulma-warning);
+}
+.lz-chip.is-testing .lz-chip-state {
+  color: var(--bulma-warning);
+  animation: lzBlink 0.9s ease-in-out infinite;
+}
+@keyframes lzBlink {
+  50% { opacity: 0.3; }
+}
+.lz-chip.is-ok {
+  border-color: var(--bulma-success);
+  color: var(--bulma-success);
+}
+.lz-chip.is-bad {
+  border-color: var(--bulma-danger);
+  color: var(--bulma-danger);
+  background: transparent;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lz-chip.is-testing .lz-chip-state { animation: none; }
 }
 .lz-chip.is-new {
   animation: edFlash 1s ease;

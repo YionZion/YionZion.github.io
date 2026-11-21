@@ -22,7 +22,7 @@
 <title>编辑</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="stylesheet" href="bulma.min.css">
-<link rel="stylesheet" href="bulma-theme.css?v=20261122-02">
+<link rel="stylesheet" href="bulma-theme.css?v=20261122-03">
 </head>
 <body class="edit">
 <section class="section edit-section">
@@ -88,6 +88,7 @@
   </div>
 </div></div>
 
+<script src="lanzou-probe.js?v=20261122-03"></script>
 <script>
 const $ = id => document.getElementById(id);
 const OWNER = 'YionZion';
@@ -416,7 +417,10 @@ function faqItem(f){
       '<div class="field"><label class="label">回答</label><div class="control"><textarea class="textarea ed-code fAnswer" spellcheck="false"></textarea></div><div class="preview"></div></div>' +
       (special
         ? '<div class="field"><label class="label">蓝奏云候选域名 <span class="ed-sub lzCount"></span></label>' +
-            '<p class="help mt-0 mb-2">主页这个问答里有「测试」按钮：访客点击后，在自己的网络下同时测 6 个域名，测出 2 个能打开就停，只显示能打开的域名。可一次粘贴多个，用空格、逗号或换行分开；粘贴完整链接也行，会自动取出域名。</p>' +
+            '<p class="help mt-0 mb-2">主页这个问答里有「测试」按钮：访客点击后，在自己的网络下同时测 6 个域名，测出 2 个能打开就停，只显示能打开的域名；点其中一个，页面上的蓝奏云链接就换成它。「测试全部域名」是用你自己的网络测，方便发现失效的域名。可一次粘贴多个，用空格、逗号或换行分开；粘贴完整链接也行，会自动取出域名。</p>' +
+            '<div class="lz-tools"><button type="button" class="button is-small lzTestAll">测试全部域名</button>' +
+              '<span class="lz-summary"></span>' +
+              '<button type="button" class="button is-small is-danger is-outlined lzPrune" hidden></button></div>' +
             '<div class="lz-chips lzList"></div>' +
             '<div class="field has-addons mt-2 mb-0"><p class="control is-expanded"><input class="input lzInput" type="text" placeholder="例如 lanzoux.com" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="添加域名"></p>' +
             '<p class="control"><button type="button" class="button lzAdd">添加</button></p></div></div>'
@@ -436,6 +440,8 @@ function faqItem(f){
     const list = el.querySelector('.lzList');
     (Array.isArray(f.domains) ? f.domains : []).forEach(d => list.appendChild(domainChip(String(d), false)));
     el.querySelector('.lzAdd').addEventListener('click', () => addDomains(el));
+    el.querySelector('.lzTestAll').addEventListener('click', () => testAllDomains(el));
+    el.querySelector('.lzPrune').addEventListener('click', () => pruneDomains(el));
     el.querySelector('.lzInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addDomains(el); } });
   } else {
     bindTools(el, 'i', '常见问题');
@@ -462,7 +468,10 @@ function domainChip(domain, isNew){
   const chip = document.createElement('span');
   chip.className = 'lz-chip' + (isNew ? ' is-new' : '');
   chip.dataset.domain = domain;
-  chip.textContent = domain;
+  chip.appendChild(document.createTextNode(domain));
+  const state = document.createElement('span');
+  state.className = 'lz-chip-state';
+  chip.appendChild(state);
   const del = document.createElement('button');
   del.type = 'button';
   del.textContent = '✕';
@@ -486,6 +495,61 @@ function normalizeDomain(raw){
   if (parts.length < 2) return '';
   t = parts.slice(-2).join('.');
   return /^[a-z0-9-]+\.[a-z]{2,}$/.test(t) ? t : '';
+}
+/* Test every candidate from this browser (same check as the home
+   page, lanzou-probe.js), 6 at a time, and mark each chip:
+   testing / usable (with its time) / unreachable / timed out. */
+let domainRun = null;
+async function testAllDomains(item){
+  if (domainRun) domainRun.abort();
+  const run = new AbortController();
+  domainRun = run;
+  const chips = Array.from(item.querySelectorAll('.lz-chip'));
+  const byDomain = new Map(chips.map(c => [c.dataset.domain, c]));
+  const btn = item.querySelector('.lzTestAll');
+  const sum = item.querySelector('.lz-summary');
+  const prune = item.querySelector('.lzPrune');
+  let ok = 0, bad = 0;
+  const paint = () => {
+    const left = chips.length - ok - bad;
+    sum.textContent = '能打开 ' + ok + ' · 打不开 ' + bad + (left ? ' · 待测 ' + left : '');
+  };
+  chips.forEach(c => setChipState(c, 'is-testing', '…'));
+  prune.hidden = true;
+  btn.disabled = true;
+  btn.textContent = '测试中…';
+  paint();
+  await LanzouProbe.test(chips.map(c => c.dataset.domain), {
+    parallel: 6,
+    signal: run.signal,
+    onResult: (d, r) => {
+      const c = byDomain.get(d);
+      if (r.ok) { ok++; setChipState(c, 'is-ok', (r.ms / 1000).toFixed(1) + 's'); }
+      else { bad++; setChipState(c, 'is-bad', r.timeout ? '超时' : '打不开'); }
+      paint();
+    },
+  });
+  if (run.signal.aborted) return;
+  domainRun = null;
+  btn.disabled = false;
+  btn.textContent = '重新测试';
+  prune.textContent = '移除打不开的 ' + bad + ' 个';
+  prune.hidden = !bad;
+}
+function setChipState(chip, cls, text){
+  chip.classList.remove('is-testing', 'is-ok', 'is-bad');
+  if (cls) chip.classList.add(cls);
+  chip.querySelector('.lz-chip-state').textContent = text || '';
+}
+function pruneDomains(item){
+  const bad = Array.from(item.querySelectorAll('.lz-chip.is-bad'));
+  if (!bad.length) return;
+  if (!confirm('移除这 ' + bad.length + ' 个在你这里打不开的域名？\n注意：你这里打不开，不代表大陆读者也打不开。')) return;
+  bad.forEach(c => c.remove());
+  item.querySelector('.lzPrune').hidden = true;
+  updateFaqHead(item);
+  changed();
+  setStatus('已移除 ' + bad.length + ' 个打不开的域名，保存后生效。', 'ok');
 }
 function addDomains(item){
   const input = item.querySelector('.lzInput');

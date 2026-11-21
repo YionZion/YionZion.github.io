@@ -70,7 +70,7 @@ setTimeout(function () { document.documentElement.classList.add('ready'); }, 300
 <link rel="icon" type="image/x-icon" href="favicon.ico">
 <noscript><style>html:not(.ready) .site-section { visibility: visible; }</style></noscript>
 <link rel="stylesheet" href="bulma.min.css">
-<link rel="stylesheet" href="bulma-theme.css?v=20261122-02">
+<link rel="stylesheet" href="bulma-theme.css?v=20261122-03">
 </head>
 <body>
 <section class="section site-section">
@@ -111,6 +111,7 @@ setTimeout(function () { document.documentElement.classList.add('ready'); }, 300
 </div>
 </section>
 
+<script src="lanzou-probe.js?v=20261122-03"></script>
 <script>
 const grid = document.getElementById('projectGrid');
 const DEFAULT_BUTTON_TEXT = '购买(需要翻墙)';
@@ -330,39 +331,40 @@ grid.addEventListener('keydown', e => {
 /* ---------- 蓝奏云 test (inside the special FAQ) ----------
    The FAQ marked "kind": "lanzou" carries the candidate domains
    ("domains"). On click (never automatically) the visitor's browser
-   tries them, LZ_PARALLEL at a time, and stops as soon as LZ_ENOUGH
-   work; only the working ones are shown (click = copy).
-   How a domain is tested: it must serve a real image at
-   https://www.<domain>/favicon.ico (every lanzou domain does, directly,
-   with status 200). A browser page cannot see whether another site
-   answered with a redirect (that is hidden by the browser's security
-   rules, whatever request mode is used), so the image is the check
-   instead: a domain that is blocked, times out, or is sent to some
-   other page (an ISP block page, a parked page...) gives no image and
-   does not count. No external service, the list is only site.json. */
-const LZ_TIMEOUT = 8000;
-const LZ_PARALLEL = 6;
-const LZ_ENOUGH = 2;
-function probeDomain(domain, stop){
-  return new Promise(resolve => {
-    const img = new Image();
-    let timer = 0;
-    const finish = ok => {
-      if (!img.onload) return;
-      img.onload = img.onerror = null;
-      clearTimeout(timer);
-      stop.removeEventListener('abort', onStop);
-      img.src = '';
-      resolve(ok);
-    };
-    const onStop = () => finish(false);
-    timer = setTimeout(() => finish(false), LZ_TIMEOUT);
-    stop.addEventListener('abort', onStop);
-    img.onload = () => finish(true);
-    img.onerror = () => finish(false);
-    img.referrerPolicy = 'no-referrer';
-    img.src = 'https://www.' + domain + '/favicon.ico?_=' + Date.now();
+   tests them (lanzou-probe.js), 6 at a time, and stops as soon as 2
+   work; only working ones are shown. Clicking one switches every
+   lanzou link of the page to it: the links on screen and the tips of
+   all projects, shown or not. */
+const LANZOU_URL = /(https?:\/\/(?:[a-z0-9-]+\.)*)lanz[a-z0-9]*\.com(?![a-z0-9-]|\.[a-z])/gi;
+function swapLanzouRoot(text, root){ return text.replace(LANZOU_URL, (m, head) => head + root); }
+function useLanzouDomain(root){
+  products.forEach(p => { if (p.tips) p.tips = swapLanzouRoot(p.tips, root); });
+  document.querySelectorAll('a[href]').forEach(a => {
+    const h = a.getAttribute('href');
+    const n = swapLanzouRoot(h, root);
+    if (n !== h) a.setAttribute('href', n);
   });
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (node.parentElement.closest('.lzt, script, style')) continue;
+    const t = swapLanzouRoot(node.nodeValue, root);
+    if (t !== node.nodeValue) node.nodeValue = t;
+  }
+  toast('已把页面上的蓝奏云链接都换成 ' + root + '，现在可以直接点开下载了。');
+}
+let toastTimer = 0;
+function toast(text){
+  let el = document.querySelector('.site-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'site-toast';
+    el.setAttribute('role', 'status');
+    document.body.appendChild(el);
+  }
+  el.textContent = text;
+  el.classList.remove('is-shown'); void el.offsetWidth; el.classList.add('is-shown');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('is-shown'), 4000);
 }
 function lanzouTest(domains){
   const box = document.createElement('div');
@@ -380,36 +382,28 @@ function lanzouTest(domains){
     b.type = 'button';
     b.className = 'lzt-chip';
     b.textContent = domain;
-    b.title = '点击复制';
+    b.title = '把页面上的蓝奏云链接换成 ' + domain;
     b.addEventListener('click', () => {
-      const done = () => { b.classList.add('is-copied'); setTimeout(() => b.classList.remove('is-copied'), 1200); };
-      if (navigator.clipboard) navigator.clipboard.writeText(domain).then(done, () => {});
+      found.querySelectorAll('.lzt-chip').forEach(c => c.classList.toggle('is-active', c === b));
+      useLanzouDomain(domain);
+      show('已换成 ' + domain + '。页面上的蓝奏云链接（包括其他项目里的）现在都用这个域名。');
     });
     return b;
   };
   runBtn.addEventListener('click', async () => {
-    const stop = new AbortController();
-    const ok = [];
-    let next = 0;
+    let n = 0;
     runBtn.disabled = true;
     runBtn.textContent = '测试中…';
     found.innerHTML = '';
     found.hidden = true;
     show('正在测试，请稍等…');
-    const worker = async () => {
-      while (next < domains.length && !stop.signal.aborted) {
-        const d = domains[next++];
-        if (await probeDomain(d, stop.signal) && !stop.signal.aborted) {
-          ok.push(d);
-          found.appendChild(chip(d));
-          found.hidden = false;
-          if (ok.length >= LZ_ENOUGH) stop.abort();
-        }
-      }
-    };
-    await Promise.all(Array.from({ length: Math.min(LZ_PARALLEL, domains.length) }, worker));
-    show(ok.length
-      ? '这些域名在你这里能打开（点击复制）。把蓝奏云链接里的域名换成它即可：'
+    await LanzouProbe.test(domains, {
+      parallel: 6,
+      enough: 2,
+      onResult: (d, r) => { if (r.ok) { n++; found.appendChild(chip(d)); found.hidden = false; } },
+    });
+    show(n
+      ? '这些域名在你这里能打开。点一个，页面上的蓝奏云链接就会换成它：'
       : '候选域名都打不开。可以换个网络（比如手机流量）再测，或改用 mega 网盘。');
     runBtn.disabled = false;
     runBtn.textContent = '重新测试';
