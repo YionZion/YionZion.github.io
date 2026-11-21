@@ -934,3 +934,838 @@ details > div p:last-child {
 [data-theme="dark"] .savebar {
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
 }
+
+/* ============ Home: project picker (tiles + inline panel) ============
+   Projects are compact tiles in a responsive grid (2 columns on a
+   phone, 5 on desktop). One tap chooses a project; its panel (tips
+   and its own buttons) unfolds right under the chosen tile's row,
+   with a notch pointing at the tile. Tap again (or Esc) to close.
+   Chosen state: one gradient "indicator" block (.pick-indicator)
+   sits behind the chosen tile's text and glides from the previous
+   tile to the new one with a slight spring; a comet of light runs
+   around its edge; a small burst of sparks marks the tap; the other
+   tiles fade back so the choice stands out. Without motion (or
+   before the indicator exists) the chosen tile itself is filled
+   with the same gradient.
+   Other motion: tiles rise in on load, a light follows the pointer,
+   mouse gets a slight 3D tilt, taps ripple. All short, none blocks
+   a click, all off under prefers-reduced-motion. */
+@property --pick-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+.pick-hint {
+  font-size: 13px;
+  color: var(--bulma-text-weak);
+  margin: -2px 0 10px;
+}
+.pick-grid {
+  --pick-glow: rgba(15, 118, 110, 0.16);
+  --pick-ripple: rgba(15, 118, 110, 0.22);
+  --pick-fill: linear-gradient(135deg, #0f766e 0%, #13897c 55%, #c27c1e 130%);
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+  gap: 8px;
+}
+.pick-status {
+  grid-column: 1 / -1;
+  color: var(--bulma-text-weak);
+}
+.pick-tile {
+  --rx: 0deg;
+  --ry: 0deg;
+  --lift: 0px;
+  --press: 1;
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 7px 10px;
+  text-align: center;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 650;
+  line-height: 1.4;
+  color: var(--bulma-text-strong);
+  background: var(--bulma-scheme-main);
+  border: 1px solid var(--bulma-border);
+  border-radius: 10px;
+  cursor: pointer;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transform: perspective(700px) rotateX(var(--rx)) rotateY(var(--ry)) translateY(var(--lift)) scale(var(--press));
+  transition: transform 0.18s ease, border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.25s ease, color 0.2s ease, opacity 0.25s ease, filter 0.25s ease;
+}
+.pick-tile.is-wide {
+  grid-column: span 2;
+}
+/* Light that follows the pointer (--mx / --my set by the script). */
+.pick-tile::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(160px circle at var(--mx, 50%) var(--my, 50%), var(--pick-glow), transparent 65%);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+.pick-tile:hover {
+  --lift: -2px;
+  border-color: var(--bulma-primary);
+  box-shadow: 0 8px 20px rgba(60, 50, 35, 0.10);
+}
+.pick-tile:hover::before {
+  opacity: 1;
+}
+.pick-tile:active {
+  --press: 0.96;
+}
+.pick-tile:focus-visible {
+  outline: 2px solid var(--bulma-primary);
+  outline-offset: 2px;
+}
+.pick-ripple {
+  position: absolute;
+  z-index: -1;
+  border-radius: 50%;
+  background: var(--pick-ripple);
+  transform: scale(0);
+  pointer-events: none;
+  animation: pickRipple 0.55s ease-out forwards;
+}
+@keyframes pickRipple {
+  to { transform: scale(1); opacity: 0; }
+}
+/* Chosen tile: white text on the gradient. */
+.pick-tile.is-selected {
+  z-index: 3;
+  color: #fff;
+  border-color: transparent;
+  background: var(--pick-fill);
+  box-shadow: 0 10px 26px rgba(15, 118, 110, 0.35);
+  transform: scale(var(--press));
+}
+.pick-tile.is-selected::before {
+  display: none;
+}
+/* With the gliding indicator, the tile itself turns see-through and
+   the indicator under it carries the fill. */
+.pick-grid.has-indicator .pick-tile.is-selected {
+  background: transparent;
+  box-shadow: none;
+}
+/* The others fade back while one is chosen; hover brings one back. */
+.pick-grid.has-selection .pick-tile:not(.is-selected) {
+  opacity: 0.6;
+  filter: saturate(0.5);
+}
+.pick-grid.has-selection .pick-tile:not(.is-selected):hover,
+.pick-grid.has-selection .pick-tile:not(.is-selected):focus-visible {
+  opacity: 1;
+  filter: none;
+}
+.pick-indicator {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  border-radius: 10px;
+  background: var(--pick-fill);
+  box-shadow: 0 10px 28px rgba(15, 118, 110, 0.38);
+  pointer-events: none;
+  opacity: 0;
+  transform-origin: center;
+  transition:
+    transform 0.5s cubic-bezier(0.34, 1.4, 0.5, 1),
+    width 0.5s cubic-bezier(0.34, 1.4, 0.5, 1),
+    height 0.5s cubic-bezier(0.34, 1.4, 0.5, 1),
+    opacity 0.2s ease;
+}
+.pick-indicator.is-on {
+  opacity: 1;
+}
+.pick-indicator.no-anim {
+  transition: none;
+}
+/* A comet of light running around the indicator's edge. */
+.pick-indicator::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  padding: 2px;
+  border-radius: 12px;
+  background: conic-gradient(from var(--pick-angle), transparent 0 58%, rgba(94, 234, 212, 0.9) 78%, #fbbf24 88%, transparent 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  animation: pickSpin 2.4s linear infinite;
+}
+@keyframes pickSpin {
+  to { --pick-angle: 360deg; }
+}
+.pick-spark {
+  position: absolute;
+  z-index: 4;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: #2dd4bf;
+  pointer-events: none;
+  animation: pickSpark 0.6s cubic-bezier(0.1, 0.7, 0.3, 1) forwards;
+}
+.pick-spark:nth-child(even) {
+  background: #f59e0b;
+}
+@keyframes pickSpark {
+  from { transform: translate(0, 0) scale(1); opacity: 1; }
+  to { transform: translate(var(--dx), var(--dy)) scale(0.2); opacity: 0; }
+}
+/* First load: tiles rise in one after another (--i set by script). */
+.pick-grid.is-intro .pick-tile {
+  animation: pickIn 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--i, 0) * 20ms);
+}
+@keyframes pickIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Panel */
+.pick-panel {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-rows: 1fr;
+  margin: 0 0 6px;
+}
+.pick-panel-inner {
+  min-height: 0;
+  padding-top: 8px;
+}
+.pick-panel.is-entering .pick-panel-inner,
+.pick-panel.is-leaving .pick-panel-inner {
+  overflow: hidden;
+}
+.pick-panel.is-entering {
+  animation: panelOpen 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.pick-panel.is-leaving {
+  animation: panelClose 0.18s ease forwards;
+}
+@keyframes panelOpen {
+  from { grid-template-rows: 0fr; opacity: 0; }
+  to { grid-template-rows: 1fr; opacity: 1; }
+}
+@keyframes panelClose {
+  from { grid-template-rows: 1fr; opacity: 1; }
+  to { grid-template-rows: 0fr; opacity: 0; }
+}
+/* In the panel the tips are shown whole, no inner scroll box, with a
+   notch on the top edge pointing at the chosen tile (--notch-x). */
+.pick-panel .detail {
+  position: relative;
+  margin-top: 0;
+  max-height: none;
+  overflow: visible;
+}
+.pick-panel .detail::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: calc(var(--notch-x, 40px) - 10px);
+  width: 12px;
+  height: 12px;
+  background: var(--bulma-scheme-main-ter);
+  border-left: 1px solid var(--bulma-border);
+  border-top: 1px solid var(--bulma-border);
+  transform: rotate(45deg);
+  transition: left 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.pick-panel .detail.show {
+  animation: none;
+}
+.pick-panel.is-entering .detail,
+.pick-panel.is-swapping .detail {
+  animation: pickRise 0.34s cubic-bezier(0.2, 0.8, 0.2, 1) 0.04s both;
+}
+.pick-panel.is-entering .pick-actions .button,
+.pick-panel.is-swapping .pick-actions .button {
+  animation: pickRise 0.34s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(0.1s + var(--j, 0) * 0.05s);
+}
+@keyframes pickRise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.pick-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.pick-actions:empty {
+  display: none;
+}
+[data-theme="dark"] .pick-grid {
+  --pick-glow: rgba(45, 212, 191, 0.14);
+  --pick-ripple: rgba(45, 212, 191, 0.22);
+}
+[data-theme="dark"] .pick-tile:hover {
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+}
+[data-theme="dark"] .pick-grid {
+  --pick-fill: linear-gradient(135deg, #0f766e 0%, #148f81 55%, #b7791f 130%);
+}
+[data-theme="dark"] .pick-indicator,
+[data-theme="dark"] .pick-tile.is-selected {
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45), 0 0 22px rgba(45, 212, 191, 0.18);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pick-tile,
+  .pick-tile::before,
+  .pick-indicator,
+  .pick-indicator::before,
+  .pick-panel,
+  .pick-panel *,
+  .pick-panel *::before,
+  .pick-panel *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .pick-tile {
+    transform: none !important;
+  }
+}
+
+/* ============ Edit page: compact collapsible lists ============
+   Projects and FAQs are one-line rows (order, name, summary, up /
+   down / delete); a tap on the name opens the row's fields. */
+.edit .ed-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 22px 0 8px;
+}
+.edit .ed-head .section-title {
+  margin: 0;
+}
+.ed-count {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--bulma-text-weak);
+}
+.ed-item {
+  background: var(--bulma-scheme-main-bis);
+  border: 1px solid var(--bulma-border);
+  border-radius: 12px;
+  margin-bottom: 8px;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.ed-item.is-open {
+  border-color: var(--bulma-primary);
+  box-shadow: var(--bulma-card-shadow);
+}
+.ed-item.is-flash {
+  animation: edFlash 1s ease;
+}
+@keyframes edFlash {
+  from { background: var(--bulma-primary-soft); }
+  to { background: var(--bulma-scheme-main-bis); }
+}
+.ed-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px 7px 10px;
+}
+.ed-row .field {
+  margin-bottom: 0 !important;
+}
+.edit .ed-order {
+  flex: none;
+  width: 48px;
+  height: 36px;
+  padding: 0 4px;
+  text-align: center;
+}
+.edit .ed-order::placeholder {
+  color: var(--bulma-text);
+}
+.ed-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 4px;
+  background: none;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  color: var(--bulma-text-strong);
+  cursor: pointer;
+}
+.ed-title::before {
+  content: "";
+  flex: none;
+  align-self: center;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--bulma-text-weak);
+  border-bottom: 2px solid var(--bulma-text-weak);
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+}
+.ed-title[aria-expanded="true"]::before {
+  transform: rotate(45deg);
+}
+.ed-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 650;
+}
+.ed-meta {
+  flex: none;
+  font-size: 12px;
+  color: var(--bulma-text-weak);
+}
+.ed-tools {
+  flex: none;
+}
+.ed-tools .button {
+  min-width: 34px;
+}
+.ed-body {
+  padding: 12px 14px 14px;
+  border-top: 1px solid var(--bulma-border-weak);
+}
+.ed-body .field:not(:last-child) {
+  margin-bottom: 12px;
+}
+.ed-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px;
+  gap: 0 10px;
+}
+.ed-grid .ed-span {
+  grid-column: 1 / -1;
+}
+.ed-sub {
+  font-weight: 400;
+  color: var(--bulma-text-weak);
+  letter-spacing: 0;
+}
+.edit .textarea.ed-code {
+  min-height: 84px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.edit .ed-body .preview {
+  margin-top: 8px;
+}
+.ed-notice-preview {
+  margin-top: 8px;
+  padding: 12px 16px;
+  border: 1px dashed var(--bulma-border);
+  border-radius: 10px;
+}
+.ed-notice-preview:empty {
+  display: none;
+}
+.ed-btn {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.ed-btn .field {
+  margin-bottom: 0 !important;
+}
+@media (max-width: 560px) {
+  .ed-btn {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed var(--bulma-border-weak);
+  }
+  .ed-btn .bUrl {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+.btn-empty {
+  font-size: 13px;
+  color: var(--bulma-text-weak);
+  margin-bottom: 8px;
+}
+.ed-add {
+  display: flex;
+  justify-content: flex-end;
+  margin: 4px 0 6px;
+}
+.ed-status {
+  font-size: 12.5px;
+  line-height: 1.5;
+  margin-bottom: 8px;
+  color: var(--bulma-text-weak);
+  overflow-wrap: anywhere;
+}
+.ed-status.is-ok {
+  color: var(--bulma-success);
+}
+.ed-status.is-error {
+  color: var(--bulma-danger);
+  font-weight: 600;
+}
+.ed-status a {
+  color: var(--theme-link);
+}
+.edit .edit-section {
+  padding-bottom: 140px;
+}
+/* Phone: the row is narrow, so the name may wrap to two lines with
+   its summary below it, and the order box / tools get slimmer. */
+@media (max-width: 560px) {
+  .ed-row {
+    gap: 6px;
+    padding: 6px 6px 6px 8px;
+  }
+  .edit .ed-order {
+    width: 40px;
+  }
+  .ed-title {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+    padding-left: 16px;
+    position: relative;
+  }
+  .ed-title::before {
+    position: absolute;
+    left: 2px;
+    top: 50%;
+    margin-top: -5px;
+  }
+  .ed-name {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    line-height: 1.35;
+  }
+  .ed-tools .button {
+    min-width: 30px;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+}
+
+/* ============ Edit page: drag to reorder ============ */
+/* Grip: 2 x 3 dots, drawn. touch-action:none so a drag on the grip
+   moves the item instead of scrolling the page. */
+.ed-handle {
+  flex: none;
+  width: 22px;
+  height: 32px;
+  padding: 5px 4px;
+  border: 0;
+  border-radius: 6px;
+  background-color: transparent;
+  background-image: radial-gradient(circle, var(--bulma-text-weak) 1.4px, transparent 1.9px);
+  background-size: 7px 7px;
+  background-origin: content-box;
+  background-clip: content-box;
+  cursor: grab;
+  touch-action: none;
+  opacity: 0.75;
+}
+.ed-handle:hover {
+  background-color: var(--bulma-scheme-main-ter);
+  opacity: 1;
+}
+.ed-handle:focus-visible {
+  outline: 2px solid var(--bulma-primary);
+  outline-offset: 1px;
+}
+body.is-dragging-any,
+body.is-dragging-any * {
+  cursor: grabbing !important;
+  user-select: none;
+  -webkit-user-select: none;
+}
+/* The dragged item follows the pointer, lifted and slightly tilted. */
+.is-dragging {
+  position: fixed !important;
+  z-index: 60;
+  margin: 0 !important;
+  pointer-events: none;
+  background: var(--bulma-scheme-main-bis);
+  border-color: var(--bulma-primary) !important;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22) !important;
+  transform: rotate(-0.8deg) scale(1.02);
+}
+.ed-placeholder {
+  border: 2px dashed var(--bulma-primary);
+  border-radius: 12px;
+  background: var(--bulma-primary-soft);
+  margin-bottom: 8px;
+}
+.ed-btn > .ed-placeholder,
+.btnList > .ed-placeholder {
+  border-radius: 10px;
+}
+/* Compact list while dragging: one short line per item. */
+.is-sorting > .ed-item {
+  margin-bottom: 4px;
+  box-shadow: none;
+  border-color: var(--bulma-border);
+}
+.is-sorting > .ed-placeholder {
+  margin-bottom: 4px;
+}
+.is-sorting .ed-body {
+  display: none !important;
+}
+.is-sorting .ed-row {
+  padding: 2px 8px 2px 6px;
+  gap: 6px;
+}
+.is-sorting .ed-order,
+.is-sorting .ed-tools,
+.is-sorting .ed-meta {
+  display: none;
+}
+.is-sorting .ed-handle {
+  height: 26px;
+  padding: 2px 4px;
+}
+.is-sorting .ed-title {
+  padding: 3px 2px !important;
+}
+.is-sorting .ed-title::before {
+  display: none;
+}
+.is-sorting .ed-name {
+  font-size: 13.5px;
+  -webkit-line-clamp: 1 !important;
+  white-space: nowrap !important;
+}
+/* Button rows: grip in front. */
+.ed-btn {
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 2fr) auto;
+}
+.btnList > .ed-btn.is-dragging {
+  padding: 6px;
+  border: 1px solid var(--bulma-primary);
+  border-radius: 10px;
+}
+@media (max-width: 560px) {
+  .ed-btn {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .ed-btn .bUrl {
+    grid-column: 2 / -1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .is-dragging { transform: none; }
+}
+
+/* ============ Home: 蓝奏云 test (inside the special FAQ answer) ============
+   A button; while testing a short line; afterwards only the domains
+   that work, as chips (click = copy). */
+.lzt {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--bulma-border);
+}
+.lzt-run {
+  font-weight: 650;
+  background: var(--bulma-primary-soft);
+  border-color: var(--bulma-primary);
+  color: var(--bulma-primary);
+}
+.lzt-run:not(:disabled):hover {
+  background: var(--bulma-primary);
+  border-color: var(--bulma-primary);
+  color: #fff;
+}
+details > div .lzt-msg {
+  margin: 10px 0 0;
+}
+.lzt-found {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.lzt-chip {
+  position: relative;
+  padding: 5px 12px;
+  border: 1px solid var(--bulma-success);
+  border-radius: 9999px;
+  background: var(--bulma-scheme-main-bis);
+  color: var(--bulma-success);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+  animation: pickRise 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.lzt-chip:hover {
+  background: var(--bulma-success);
+  color: #fff;
+}
+.lzt-chip:focus-visible {
+  outline: 2px solid var(--bulma-success);
+  outline-offset: 2px;
+}
+.lzt-chip.is-active {
+  background: var(--bulma-success);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+.lzt-chip.is-active::before {
+  content: "✓ ";
+}
+/* Toast after switching the lanzou domain: bottom centre, above
+   everything, fades in and out. */
+.site-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  z-index: 100;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: var(--bulma-text-strong);
+  color: var(--bulma-scheme-main);
+  font-size: 14px;
+  line-height: 1.5;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 12px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.site-toast.is-shown {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .lzt-chip { animation: none; }
+  .site-toast { transition: none; }
+}
+
+/* ============ Edit page: 蓝奏云 candidate domains as chips ============ */
+.lz-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.lz-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 4px 3px 10px;
+  border: 1px solid var(--bulma-border);
+  border-radius: 9999px;
+  background: var(--bulma-scheme-main);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  color: var(--bulma-text);
+}
+.lz-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 10px;
+}
+.lz-summary {
+  font-size: 13px;
+  color: var(--bulma-text-weak);
+  font-variant-numeric: tabular-nums;
+}
+.lz-tools .lzPrune {
+  margin-left: auto;
+}
+.lz-chip-state {
+  font-family: inherit;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.lz-chip-state:not(:empty) {
+  margin-left: 4px;
+}
+.lz-chip.is-testing {
+  border-color: var(--bulma-warning);
+}
+.lz-chip.is-testing .lz-chip-state {
+  color: var(--bulma-warning);
+  animation: lzBlink 0.9s ease-in-out infinite;
+}
+@keyframes lzBlink {
+  50% { opacity: 0.3; }
+}
+.lz-chip.is-ok {
+  border-color: var(--bulma-success);
+  color: var(--bulma-success);
+}
+.lz-chip.is-bad {
+  border-color: var(--bulma-danger);
+  color: var(--bulma-danger);
+  background: transparent;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lz-chip.is-testing .lz-chip-state { animation: none; }
+}
+.lz-chip.is-new {
+  animation: edFlash 1s ease;
+}
+.lz-chip button {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--bulma-text-weak);
+  font-size: 12px;
+  line-height: 22px;
+  cursor: pointer;
+}
+.lz-chip button:hover {
+  background: #fef2f2;
+  color: var(--bulma-danger);
+}
+[data-theme="dark"] .lz-chip button:hover {
+  background: #3a2323;
+}
+
+/* Edit page: the special 蓝奏云 FAQ, when set to hidden. */
+.ed-item.is-off .ed-name {
+  color: var(--bulma-text-weak);
+  text-decoration: line-through;
+  text-decoration-color: var(--bulma-border);
+}
+
+/* Bulma's .button sets display:inline-flex, which beats the browser's
+   own [hidden] rule; keep hidden buttons hidden (e.g. "移除打不开的"
+   before a test, "全部展开" with no projects). */
+.button[hidden] {
+  display: none !important;
+}

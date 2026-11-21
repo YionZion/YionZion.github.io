@@ -22,7 +22,7 @@
 <title>编辑</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="stylesheet" href="bulma.min.css">
-<link rel="stylesheet" href="bulma-theme.css?v=20261027-01">
+<link rel="stylesheet" href="bulma-theme.css?v=20261122-04">
 </head>
 <body class="edit">
 <section class="section edit-section">
@@ -42,61 +42,78 @@
         <label class="label" for="fTitle">页面标题</label>
         <div class="control"><input id="fTitle" class="input" type="text"></div>
       </div>
+      <div class="field">
+        <label class="label" for="fNotice">说明 <span class="ed-sub">（整块 HTML，主页按 HTML 显示，只写内容不用写样式；留空则不显示）</span></label>
+        <div class="control"><textarea id="fNotice" class="textarea ed-code" spellcheck="false"></textarea></div>
+        <div id="noticePreview" class="ed-notice-preview content"></div>
+      </div>
     </div>
   </div>
 
+  <div class="ed-head">
+    <div class="section-title">项目 <span id="productCount" class="ed-count"></span></div>
+    <button id="toggleAll" type="button" class="button is-small is-ghost">全部展开</button>
+  </div>
   <div id="productList"></div>
+  <div class="ed-add"><button id="addBtn" type="button" class="button">新增项目</button></div>
 
-  <div class="buttons mt-4 is-right">
-    <button id="addBtn" type="button" class="button">新增项目</button>
-    <button id="downloadBtn" type="button" class="button">下载 JSON 备份</button>
+  <div class="ed-head">
+    <div class="section-title">常见问题 <span id="faqCount" class="ed-count"></span></div>
   </div>
-
-  <div class="section-title">常见问题</div>
   <div id="faqList"></div>
-  <div class="buttons mt-4 is-right">
-    <button id="addFaqBtn" type="button" class="button">新增常见问题</button>
-  </div>
-
-  <div id="status" class="notification mt-4">正在加载当前 JSON……</div>
+  <div class="ed-add"><button id="addFaqBtn" type="button" class="button">新增常见问题</button></div>
 
   <div class="card mt-4">
-    <header class="card-header"><p class="card-header-title">JSON 预览</p></header>
+    <header class="card-header"><p class="card-header-title">JSON</p></header>
     <div class="card-content">
       <details>
         <summary>查看当前 JSON（只读预览）</summary>
         <pre id="jsonPreview" class="json-preview"></pre>
       </details>
+      <div class="buttons is-right mt-3 mb-0"><button id="downloadBtn" type="button" class="button is-small">下载 JSON 备份</button></div>
     </div>
   </div>
 </div>
 </section>
 
 <div class="savebar"><div class="container is-max-tablet savebar-inner">
+  <div id="status" class="ed-status" role="status" aria-live="polite">正在加载当前 JSON……</div>
   <div class="field has-addons">
     <p class="control is-expanded">
       <input id="token" class="input" type="password" placeholder="令牌" autocomplete="off">
     </p>
     <p class="control">
-      <button id="saveBtn" type="button" class="button is-primary">保存并提交到仓库</button>
+      <button id="saveBtn" type="button" class="button is-primary" title="Ctrl / ⌘ + S">保存并提交到仓库</button>
     </p>
   </div>
 </div></div>
 
+<script src="lanzou-probe.js?v=20261122-03"></script>
 <script>
 const $ = id => document.getElementById(id);
 const OWNER = 'YionZion';
 const REPO = 'YionZion.github.io';
 const BRANCH = 'master';
 const JSON_PATH = 'data/site.json';
+const DEFAULT_BUTTON_TEXT = '购买(需要翻墙)';
 let data = null;
-let originalJsonText = '';
+let originalJsonText = '';   // repository version as loaded, for the conflict check on save
+let baselineText = '';       // form state right after load / save, for "unsaved changes"
+let dirty = false;
+let msg = { text: '', kind: '' };
 
-function setStatus(msg, kind){
+/* ---------- Status line in the save bar ---------- */
+function setStatus(text, kind){ msg = { text: text || '', kind: kind || '' }; paintStatus(); }
+function paintStatus(){
   const el = $('status');
-  el.textContent = msg;
-  el.className = 'notification mt-4' + (kind === 'error' ? ' is-danger' : kind === 'ok' ? ' is-success' : '');
+  let text = msg.text, kind = msg.kind;
+  if (!text && dirty) text = '有未保存的修改（Ctrl / ⌘ + S 保存）';
+  el.textContent = text;
+  el.className = 'ed-status' + (kind === 'error' ? ' is-error' : kind === 'ok' ? ' is-ok' : '');
+  el.hidden = !text;
 }
+
+/* ---------- GitHub contents API helpers ---------- */
 function decodeB64(b64){
   const bin = atob(String(b64).replace(/\s/g,''));
   const bytes = new Uint8Array(bin.length);
@@ -113,14 +130,21 @@ function encodeB64(str){
 function apiUrl(){
   return 'https://api.github.com/repos/' + OWNER + '/' + REPO + '/contents/' + JSON_PATH;
 }
+
+/* ---------- Form <-> data ---------- */
 function collectFromForm(){
   const products = [];
   document.querySelectorAll('.product').forEach(el => {
+    const buttons = [];
+    el.querySelectorAll('.ed-btn').forEach(b => {
+      buttons.push({ text: b.querySelector('.bText').value, url: b.querySelector('.bUrl').value });
+    });
     products.push({
       name: el.querySelector('.pName').value,
       url: el.querySelector('.pUrl').value,
       price: el.querySelector('.pPrice').value === '' ? 1 : Number(el.querySelector('.pPrice').value),
       tips: el.querySelector('.pTips').value,
+      buttons: buttons,
     });
   });
   const faqs = [];
@@ -128,133 +152,548 @@ function collectFromForm(){
     const faq = {};
     faq['问题'] = el.querySelector('.fQuestion').value;
     faq['回答'] = el.querySelector('.fAnswer').value;
+    if (el.classList.contains('is-lanzou')) {
+      faq.kind = 'lanzou';
+      faq.hidden = el.classList.contains('is-off');
+      faq.domains = Array.from(el.querySelectorAll('.lz-chip')).map(c => c.dataset.domain);
+    }
     faqs.push(faq);
   });
-  return { title: $('fTitle').value, products: products, faqs: faqs };
+  return { title: $('fTitle').value, notice: $('fNotice').value, products: products, faqs: faqs };
 }
-function updatePreviewFor(el){
-  el.querySelector('.preview').innerHTML = el.querySelector('.pTips').value || '';
+
+function autosize(ta){
+  if (!ta.offsetParent) return;
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(ta.scrollHeight + 2, 420) + 'px';
 }
-function updateOrderPlaceholders(){
-  document.querySelectorAll('.product').forEach((el, idx) => {
-    const input = el.querySelector('.orderInput');
-    if (input && document.activeElement !== input) input.placeholder = String(idx + 1);
+const HANDLE = '<button type="button" class="ed-handle" title="拖动排序（选中后也可按 ↑ ↓）" aria-label="拖动排序"></button>';
+function tools(prefix){
+  return '<div class="field has-addons tool-addons ed-tools">' +
+    '<p class="control"><button type="button" class="button is-danger is-outlined ' + prefix + 'Del" title="删除" aria-label="删除">✕</button></p>' +
+    '</div>';
+}
+
+/* ---------- Drag to reorder ----------
+   Press the grip (⋮⋮) and drag. Pointer events, so mouse, touch and
+   pen all work. Project / FAQ lists turn compact while dragging (one
+   short line per item, fields folded away) so more of the list fits
+   on screen; they unfold again on drop, with the dropped item kept
+   at the same place on screen. Near the top or bottom edge the page
+   scrolls by itself. Keyboard: focus the grip, press ↑ / ↓. */
+let drag = null;
+function sortable(item, compact){
+  const handle = item.querySelector(':scope > .ed-handle, :scope > .ed-row > .ed-handle');
+  handle.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || drag) return;
+    e.preventDefault();
+    handle.setPointerCapture(e.pointerId);
+    drag = { item, handle, compact, startY: e.clientY, y: e.clientY, active: false, raf: 0, moved: false };
+  });
+  handle.addEventListener('pointermove', e => {
+    if (!drag || drag.item !== item) return;
+    drag.y = e.clientY;
+    if (!drag.active) { if (Math.abs(e.clientY - drag.startY) > 4) beginDrag(); else return; }
+    placeGhost();
+    reorder();
+  });
+  const end = () => { if (drag && drag.item === item) endDrag(); };
+  handle.addEventListener('pointerup', end);
+  handle.addEventListener('pointercancel', end);
+  handle.addEventListener('keydown', e => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    const sib = e.key === 'ArrowUp' ? item.previousElementSibling : item.nextElementSibling;
+    if (!sib) return;
+    if (e.key === 'ArrowUp') item.parentElement.insertBefore(item, sib); else item.parentElement.insertBefore(sib, item);
+    handle.focus();
+    flash(item);
+    changed();
   });
 }
-function refreshPreview(){
-  try { $('jsonPreview').textContent = JSON.stringify(collectFromForm(), null, 2); } catch(e) {}
-  document.querySelectorAll('.product').forEach(updatePreviewFor);
-  document.querySelectorAll('.faq').forEach(el => { el.querySelector('.preview').innerHTML = el.querySelector('.fAnswer').value || ''; });
-  updateOrderPlaceholders();
+function flash(el){ el.classList.remove('is-flash'); void el.offsetWidth; el.classList.add('is-flash'); }
+function beginDrag(){
+  const d = drag;
+  d.active = true;
+  d.list = d.item.parentElement;
+  if (d.compact) d.list.classList.add('is-sorting');
+  document.body.classList.add('is-dragging-any');
+  const r = d.item.getBoundingClientRect();
+  d.ph = document.createElement('div');
+  d.ph.className = 'ed-placeholder';
+  d.ph.style.height = r.height + 'px';
+  d.list.insertBefore(d.ph, d.item);
+  d.item.classList.add('is-dragging');
+  /* The list just got shorter: scroll so the item's slot is back
+     under the finger / pointer. */
+  let pr = d.ph.getBoundingClientRect();
+  window.scrollBy(0, pr.top + pr.height / 2 - d.y);
+  pr = d.ph.getBoundingClientRect();
+  d.h = pr.height;
+  d.offY = Math.min(Math.max(d.y - pr.top, 0), pr.height);
+  d.item.style.left = pr.left + 'px';
+  d.item.style.width = pr.width + 'px';
+  placeGhost();
+  autoScroll();
 }
-function moveCardTo(card, targetIndex){
-  const list = $('productList');
-  const cards = Array.from(list.children);
-  const total = cards.length;
-  if (targetIndex < 0) targetIndex = 0;
-  if (targetIndex >= total) targetIndex = total - 1;
-  list.removeChild(card);
-  const remaining = Array.from(list.children);
-  if (targetIndex >= remaining.length) list.appendChild(card);
-  else list.insertBefore(card, remaining[targetIndex]);
-  refreshPreview();
+function placeGhost(){ drag.item.style.top = (drag.y - drag.offY) + 'px'; }
+function reorder(){
+  const d = drag;
+  const center = d.y - d.offY + d.h / 2;
+  const sibs = Array.from(d.list.children).filter(c => c !== d.item && c !== d.ph);
+  let target = null;
+  for (const c of sibs) { const r = c.getBoundingClientRect(); if (center < r.top + r.height / 2) { target = c; break; } }
+  let next = d.ph.nextElementSibling;
+  if (next === d.item) next = next.nextElementSibling;
+  if (next === target) return;
+  /* FLIP: the others slide to their new places instead of jumping. */
+  const before = new Map(sibs.map(c => [c, c.getBoundingClientRect().top]));
+  if (target) d.list.insertBefore(d.ph, target); else d.list.appendChild(d.ph);
+  d.moved = true;
+  sibs.forEach(c => {
+    const dy = before.get(c) - c.getBoundingClientRect().top;
+    if (!dy) return;
+    c.style.transition = 'none';
+    c.style.transform = 'translateY(' + dy + 'px)';
+    void c.offsetWidth;
+    c.style.transition = 'transform 0.18s ease';
+    c.style.transform = '';
+  });
 }
-document.addEventListener('input', e => { if (e.target.closest('.product') || e.target.closest('.faq') || e.target.id === 'fTitle') refreshPreview(); });
+function autoScroll(){
+  const d = drag;
+  if (!d || !d.active) return;
+  const edge = 70;
+  const bottom = window.innerHeight - (document.querySelector('.savebar') || { offsetHeight: 0 }).offsetHeight;
+  let v = 0;
+  if (d.y < edge) v = -Math.ceil((edge - d.y) / edge * 16);
+  else if (d.y > bottom - edge) v = Math.ceil((d.y - (bottom - edge)) / edge * 16);
+  if (v) { window.scrollBy(0, v); reorder(); }
+  d.raf = requestAnimationFrame(autoScroll);
+}
+function endDrag(){
+  const d = drag;
+  drag = null;
+  if (!d.active) return;
+  cancelAnimationFrame(d.raf);
+  d.item.classList.remove('is-dragging');
+  d.item.style.left = d.item.style.top = d.item.style.width = '';
+  d.list.insertBefore(d.item, d.ph);
+  d.ph.remove();
+  d.list.querySelectorAll(':scope > *').forEach(c => { c.style.transition = ''; c.style.transform = ''; });
+  document.body.classList.remove('is-dragging-any');
+  if (d.compact) {
+    /* Unfold the list, keeping the dropped item where it is on screen. */
+    const top = d.item.getBoundingClientRect().top;
+    d.list.classList.remove('is-sorting');
+    window.scrollBy(0, d.item.getBoundingClientRect().top - top);
+  }
+  flash(d.item);
+  if (d.moved) { changed(); setStatus('已调整顺序，保存后生效。', 'ok'); }
+}
+function bindTools(el, prefix, what, onDelete){
+  el.querySelector('.' + prefix + 'Del').addEventListener('click', () => {
+    if (!confirm('确定删除这个' + what + '吗？')) return;
+    const owner = el.closest('.product');
+    el.remove();
+    if (onDelete) onDelete(owner);
+    changed();
+  });
+}
+function setOpen(item, open){
+  item.classList.toggle('is-open', open);
+  item.querySelector('.ed-body').hidden = !open;
+  item.querySelector('.ed-title').setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) item.querySelectorAll('textarea').forEach(autosize);
+  updateToggleAll();
+}
+
+/* ----- one purchase button row ----- */
+function buttonRow(card, b){
+  const row = document.createElement('div');
+  row.className = 'ed-btn';
+  row.innerHTML = HANDLE +
+    '<input class="input bText" type="text" placeholder="按钮文字" aria-label="按钮文字">' +
+    '<input class="input bUrl" type="text" placeholder="跳转地址 https://…" aria-label="跳转地址" autocomplete="off">' +
+    tools('b');
+  row.querySelector('.bText').value = b.text || '';
+  row.querySelector('.bUrl').value = b.url || '';
+  bindTools(row, 'b', '按钮', updateProductHead);
+  sortable(row, false);
+  card.querySelector('.btnList').appendChild(row);
+  return row;
+}
+
+/* ----- one project ----- */
+function productItem(p){
+  const el = document.createElement('div');
+  el.className = 'ed-item product';
+  el.innerHTML =
+    '<div class="ed-row">' + HANDLE +
+      '<input class="input ed-order orderInput" type="number" min="1" inputmode="numeric" autocomplete="off" title="输入新序号后回车，移动到该位置" aria-label="序号">' +
+      '<button type="button" class="ed-title" aria-expanded="false"><span class="ed-name"></span><span class="ed-meta"></span></button>' +
+      tools('i') +
+    '</div>' +
+    '<div class="ed-body" hidden>' +
+      '<div class="ed-grid">' +
+        '<div class="field ed-span"><label class="label">名称</label><div class="control"><input class="input pName" type="text"></div></div>' +
+        '<div class="field"><label class="label">链接</label><div class="control"><input class="input pUrl" type="text" autocomplete="off"></div><p class="help">没配按钮时，默认按钮跳到这里</p></div>' +
+        '<div class="field"><label class="label">价格</label><div class="control"><input class="input pPrice" type="number" step="any"></div></div>' +
+      '</div>' +
+      '<div class="field"><label class="label">提示区</label><div class="control"><textarea class="textarea ed-code pTips" spellcheck="false"></textarea></div><div class="preview"></div></div>' +
+      '<div class="field"><label class="label">按钮</label><div class="btn-empty"></div><div class="btnList"></div>' +
+        '<button type="button" class="button is-small addBtnItem">＋ 新增按钮</button></div>' +
+    '</div>';
+  el.querySelector('.pName').value = p.name || '';
+  el.querySelector('.pUrl').value = p.url || '';
+  el.querySelector('.pPrice').value = (p.price ?? '');
+  el.querySelector('.pTips').value = p.tips || '';
+  (Array.isArray(p.buttons) ? p.buttons : []).forEach(b => buttonRow(el, b || {}));
+  el.querySelector('.ed-title').addEventListener('click', () => setOpen(el, el.querySelector('.ed-body').hidden));
+  bindTools(el, 'i', '项目');
+  sortable(el, true);
+  el.querySelector('.addBtnItem').addEventListener('click', () => {
+    /* The first button starts as the default one the home page shows
+       now (same text, same link), so nothing changes until edited. */
+    const first = !el.querySelector('.ed-btn');
+    const row = buttonRow(el, first ? { text: DEFAULT_BUTTON_TEXT, url: el.querySelector('.pUrl').value } : {});
+    updateProductHead(el);
+    changed();
+    row.querySelector('.bText').focus();
+  });
+  const order = el.querySelector('.orderInput');
+  const applyOrder = () => {
+    const list = $('productList');
+    const total = list.children.length;
+    const raw = order.value.trim();
+    if (!raw) return;
+    const num = Number(raw);
+    order.value = '';
+    if (!Number.isInteger(num) || num < 1 || num > total) { setStatus('请输入 1 到 ' + total + ' 之间的序号。', 'error'); return; }
+    const rest = Array.from(list.children).filter(c => c !== el);
+    if (num - 1 >= rest.length) list.appendChild(el); else list.insertBefore(el, rest[num - 1]);
+    flash(el);
+    el.scrollIntoView({ block: 'nearest' });
+    changed();
+    setStatus('已移到第 ' + num + ' 位，保存后生效。', 'ok');
+  };
+  order.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyOrder(); } });
+  order.addEventListener('change', applyOrder);
+  updateProductHead(el);
+  return el;
+}
+function updateProductHead(el){
+  if (!el) return;
+  el.querySelector('.ed-name').textContent = el.querySelector('.pName').value.trim() || '（未命名项目）';
+  el.querySelector('.preview').innerHTML = el.querySelector('.pTips').value || '';
+  const n = el.querySelectorAll('.ed-btn').length;
+  const url = el.querySelector('.pUrl').value.trim();
+  el.querySelector('.ed-meta').textContent = n ? n + ' 个按钮' : url ? '默认按钮' : '无按钮';
+  const empty = el.querySelector('.btn-empty');
+  empty.hidden = n > 0;
+  empty.textContent = url
+    ? '还没配按钮：主页显示一个默认的「' + DEFAULT_BUTTON_TEXT + '」，跳到上面的「链接」。'
+    : '还没配按钮，「链接」也为空：主页不显示购买按钮。';
+}
+
+/* ----- one FAQ -----
+   The FAQ with "kind": "lanzou" (蓝奏云打不开？) is special: it holds
+   the 蓝奏云 test and its candidate domains, so it cannot be deleted;
+   its ✕ is replaced by a 隐藏 / 显示 switch (hidden = not shown on the
+   home page). */
+function faqItem(f){
+  const special = f.kind === 'lanzou';
+  const el = document.createElement('div');
+  el.className = 'ed-item faq' + (special ? ' is-lanzou' : '');
+  el.innerHTML =
+    '<div class="ed-row">' + HANDLE +
+      '<button type="button" class="ed-title" aria-expanded="false"><span class="ed-name"></span><span class="ed-meta"></span></button>' +
+      (special
+        ? '<div class="field has-addons tool-addons ed-tools"><p class="control"><button type="button" class="button iHide"></button></p></div>'
+        : tools('i')) +
+    '</div>' +
+    '<div class="ed-body" hidden>' +
+      '<div class="field"><label class="label">问题</label><div class="control"><input class="input fQuestion" type="text"></div></div>' +
+      '<div class="field"><label class="label">回答</label><div class="control"><textarea class="textarea ed-code fAnswer" spellcheck="false"></textarea></div><div class="preview"></div></div>' +
+      (special
+        ? '<div class="field"><label class="label">蓝奏云候选域名 <span class="ed-sub lzCount"></span></label>' +
+            '<p class="help mt-0 mb-2">主页这个问答里有「测试」按钮：访客点击后，在自己的网络下同时测 6 个域名，测出 2 个能打开就停，只显示能打开的域名；点其中一个，页面上的蓝奏云链接就换成它。「测试全部域名」是用你自己的网络测，方便发现失效的域名。可一次粘贴多个，用空格、逗号或换行分开；粘贴完整链接也行，会自动取出域名。</p>' +
+            '<div class="lz-tools"><button type="button" class="button is-small lzTestAll">测试全部域名</button>' +
+              '<span class="lz-summary"></span>' +
+              '<button type="button" class="button is-small is-danger is-outlined lzPrune" hidden></button></div>' +
+            '<div class="lz-chips lzList"></div>' +
+            '<div class="field has-addons mt-2 mb-0"><p class="control is-expanded"><input class="input lzInput" type="text" placeholder="例如 lanzoux.com" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="添加域名"></p>' +
+            '<p class="control"><button type="button" class="button lzAdd">添加</button></p></div></div>'
+        : '') +
+    '</div>';
+  el.querySelector('.fQuestion').value = f['问题'] || f.question || '';
+  el.querySelector('.fAnswer').value = f['回答'] || f.answer || '';
+  el.querySelector('.ed-title').addEventListener('click', () => setOpen(el, el.querySelector('.ed-body').hidden));
+  if (special) {
+    el.classList.toggle('is-off', !!f.hidden);
+    el.querySelector('.iHide').addEventListener('click', () => {
+      el.classList.toggle('is-off');
+      updateFaqHead(el);
+      changed();
+      setStatus(el.classList.contains('is-off') ? '已设为隐藏，主页不显示这个问答。保存后生效。' : '已设为显示。保存后生效。', 'ok');
+    });
+    const list = el.querySelector('.lzList');
+    (Array.isArray(f.domains) ? f.domains : []).forEach(d => list.appendChild(domainChip(String(d), false)));
+    el.querySelector('.lzAdd').addEventListener('click', () => addDomains(el));
+    el.querySelector('.lzTestAll').addEventListener('click', () => testAllDomains(el));
+    el.querySelector('.lzPrune').addEventListener('click', () => pruneDomains(el));
+    el.querySelector('.lzInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addDomains(el); } });
+  } else {
+    bindTools(el, 'i', '常见问题');
+  }
+  sortable(el, true);
+  updateFaqHead(el);
+  return el;
+}
+function updateFaqHead(el){
+  el.querySelector('.ed-name').textContent = el.querySelector('.fQuestion').value.trim() || '（未填写问题）';
+  el.querySelector('.preview').innerHTML = el.querySelector('.fAnswer').value || '';
+  if (!el.classList.contains('is-lanzou')) return;
+  const hidden = el.classList.contains('is-off');
+  const n = el.querySelectorAll('.lz-chip').length;
+  el.querySelector('.ed-meta').textContent = (hidden ? '已隐藏 · ' : '') + '蓝奏云测试 · ' + n + ' 个域名';
+  el.querySelector('.lzCount').textContent = '（' + n + '）';
+  const btn = el.querySelector('.iHide');
+  btn.textContent = hidden ? '显示' : '隐藏';
+  btn.title = hidden ? '在主页显示这个问答' : '在主页隐藏这个问答（这个问答不能删除）';
+}
+
+/* ----- 蓝奏云 candidate domains (chips in the special FAQ) ----- */
+function domainChip(domain, isNew){
+  const chip = document.createElement('span');
+  chip.className = 'lz-chip' + (isNew ? ' is-new' : '');
+  chip.dataset.domain = domain;
+  chip.appendChild(document.createTextNode(domain));
+  const state = document.createElement('span');
+  state.className = 'lz-chip-state';
+  chip.appendChild(state);
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.textContent = '✕';
+  del.title = '删除';
+  del.setAttribute('aria-label', '删除 ' + domain);
+  del.addEventListener('click', () => {
+    const item = chip.closest('.faq');
+    chip.remove();
+    updateFaqHead(item);
+    changed();
+    setStatus('已删除 ' + domain + '，保存后生效。', 'ok');
+  });
+  chip.appendChild(del);
+  return chip;
+}
+/* "https://wwln.lanzoux.com/abc" / "wwln.lanzoux.com" / "LANZOUX.COM"
+   all become "lanzoux.com"; anything else is rejected. */
+function normalizeDomain(raw){
+  let t = String(raw).trim().toLowerCase().replace(/^[a-z]+:\/\//, '').split(/[\/?#:]/)[0];
+  const parts = t.split('.').filter(Boolean);
+  if (parts.length < 2) return '';
+  t = parts.slice(-2).join('.');
+  return /^[a-z0-9-]+\.[a-z]{2,}$/.test(t) ? t : '';
+}
+/* Test every candidate from this browser (same check as the home
+   page, lanzou-probe.js), 6 at a time, and mark each chip:
+   testing / usable (with its time) / unreachable / timed out. */
+let domainRun = null;
+async function testAllDomains(item){
+  if (domainRun) domainRun.abort();
+  const run = new AbortController();
+  domainRun = run;
+  const chips = Array.from(item.querySelectorAll('.lz-chip'));
+  const byDomain = new Map(chips.map(c => [c.dataset.domain, c]));
+  const btn = item.querySelector('.lzTestAll');
+  const sum = item.querySelector('.lz-summary');
+  const prune = item.querySelector('.lzPrune');
+  let ok = 0, bad = 0;
+  const paint = () => {
+    const left = chips.length - ok - bad;
+    sum.textContent = '能打开 ' + ok + ' · 打不开 ' + bad + (left ? ' · 待测 ' + left : '');
+  };
+  chips.forEach(c => setChipState(c, 'is-testing', '…'));
+  prune.hidden = true;
+  btn.disabled = true;
+  btn.textContent = '测试中…';
+  paint();
+  await LanzouProbe.test(chips.map(c => c.dataset.domain), {
+    parallel: 6,
+    signal: run.signal,
+    onResult: (d, r) => {
+      const c = byDomain.get(d);
+      if (r.ok) { ok++; setChipState(c, 'is-ok', (r.ms / 1000).toFixed(1) + 's'); }
+      else { bad++; setChipState(c, 'is-bad', r.timeout ? '超时' : '打不开'); }
+      paint();
+    },
+  });
+  if (run.signal.aborted) return;
+  domainRun = null;
+  btn.disabled = false;
+  btn.textContent = '重新测试';
+  prune.textContent = '移除打不开的 ' + bad + ' 个';
+  prune.hidden = !bad;
+}
+function setChipState(chip, cls, text){
+  chip.classList.remove('is-testing', 'is-ok', 'is-bad');
+  if (cls) chip.classList.add(cls);
+  chip.querySelector('.lz-chip-state').textContent = text || '';
+}
+function pruneDomains(item){
+  const bad = Array.from(item.querySelectorAll('.lz-chip.is-bad'));
+  if (!bad.length) return;
+  if (!confirm('移除这 ' + bad.length + ' 个在你这里打不开的域名？\n注意：你这里打不开，不代表大陆读者也打不开。')) return;
+  bad.forEach(c => c.remove());
+  item.querySelector('.lzPrune').hidden = true;
+  updateFaqHead(item);
+  changed();
+  setStatus('已移除 ' + bad.length + ' 个打不开的域名，保存后生效。', 'ok');
+}
+function addDomains(item){
+  const input = item.querySelector('.lzInput');
+  const list = item.querySelector('.lzList');
+  const have = new Set(Array.from(list.children).map(c => c.dataset.domain));
+  const added = [], dup = [], bad = [];
+  input.value.split(/[\s,，;；、]+/).filter(Boolean).forEach(raw => {
+    const d = normalizeDomain(raw);
+    if (!d) bad.push(raw);
+    else if (have.has(d)) dup.push(d);
+    else { have.add(d); added.push(d); list.appendChild(domainChip(d, true)); }
+  });
+  if (!added.length && !dup.length && !bad.length) { input.focus(); return; }
+  input.value = bad.join(' ');
+  input.focus();
+  const parts = [];
+  if (added.length) parts.push('已添加 ' + added.join('、'));
+  if (dup.length) parts.push('已存在 ' + dup.join('、'));
+  if (bad.length) parts.push('无法识别 ' + bad.join('、'));
+  updateFaqHead(item);
+  changed();
+  setStatus(parts.join('；') + (added.length ? '。保存后生效。' : '。'), bad.length ? 'error' : 'ok');
+}
+
+/* ---------- Render / refresh ---------- */
 function renderForm(){
   if (!data) return;
   $('fTitle').value = data.title || '';
+  $('fNotice').value = typeof data.notice === 'string' ? data.notice : '';
+  $('noticePreview').innerHTML = $('fNotice').value;
   const list = $('productList');
   list.innerHTML = '';
-  (data.products || []).forEach((p) => {
-    const card = document.createElement('div');
-    card.className = 'card product mb-4';
-    card.innerHTML =
-      '<div class="card-content">' +
-      '<div class="level is-mobile"><div class="level-left"><div class="field has-addons"><p class="control order-control"><input class="input orderInput" type="number" min="1" max="999" size="3" inputmode="numeric" autocomplete="off"></p><p class="control"><button type="button" class="button orderBtn">确定</button></p></div></div><div class="level-right"><div class="field has-addons tool-addons"><p class="control"><button type="button" class="button is-small upBtn">上移</button></p><p class="control"><button type="button" class="button is-small downBtn">下移</button></p><p class="control"><button type="button" class="button is-small is-danger is-outlined delBtn">删除</button></p></div></div></div>' +
-      '<div class="field"><label class="label">名称</label><div class="control"><input class="input pName" type="text"></div></div>' +
-      '<div class="field"><label class="label">链接</label><div class="control"><input class="input pUrl" type="text" autocomplete="off"></div></div>' +
-      '<div class="field"><label class="label">价格</label><div class="control"><input class="input pPrice" type="number" step="any"></div></div>' +
-      '<div class="field"><label class="label">提示区</label><div class="control"><textarea class="textarea pTips"></textarea></div></div>' +
-      '<div class="preview-label">预览</div>' +
-      '<div class="preview"></div>' +
-      '</div>';
-    card.querySelector('.pName').value = p.name || '';
-    card.querySelector('.pUrl').value = p.url || '';
-    card.querySelector('.pPrice').value = (p.price ?? '');
-    card.querySelector('.pTips').value = p.tips || '';
-    card.querySelector('.delBtn').addEventListener('click', () => { if (confirm('确定删除这个项目吗？')) { card.remove(); refreshPreview(); } });
-    card.querySelector('.upBtn').addEventListener('click', () => { const prev = card.previousElementSibling; if (prev) { list.insertBefore(card, prev); refreshPreview(); } });
-    card.querySelector('.downBtn').addEventListener('click', () => { const next = card.nextElementSibling; if (next) { list.insertBefore(next, card); refreshPreview(); } });
-    const applyOrder = () => {
-      const total = list.children.length;
-      const raw = card.querySelector('.orderInput').value.trim();
-      const num = Number(raw);
-      if (!raw || !Number.isInteger(num) || num < 1 || num > total) { setStatus('请输入 1 到 ' + total + ' 之间的序号。', 'error'); card.querySelector('.orderInput').focus(); return; }
-      moveCardTo(card, num - 1);
-      card.querySelector('.orderInput').value = '';
-      setStatus('已排到第 ' + num + ' 位，点底部保存后才提交到仓库。', 'ok');
-    };
-    card.querySelector('.orderBtn').addEventListener('click', applyOrder);
-    card.querySelector('.orderInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyOrder(); } });
-    list.appendChild(card);
-  });
+  (data.products || []).forEach(p => list.appendChild(productItem(p)));
   const faqList = $('faqList');
   faqList.innerHTML = '';
-  (data.faqs || []).forEach((f) => {
-    const question = f['问题'] || f.question || '';
-    const answer = f['回答'] || f.answer || '';
-    const card = document.createElement('div');
-    card.className = 'card faq mb-4';
-    card.innerHTML =
-      '<div class="card-content">' +
-      '<div class="faq-head"><div class="field has-addons tool-addons"><p class="control"><button type="button" class="button is-small upBtn">上移</button></p><p class="control"><button type="button" class="button is-small downBtn">下移</button></p><p class="control"><button type="button" class="button is-small is-danger is-outlined delBtn">删除</button></p></div></div>' +
-      '<div class="field"><label class="label">问题</label><div class="control"><input class="input fQuestion" type="text"></div></div>' +
-      '<div class="field"><label class="label">回答</label><div class="control"><textarea class="textarea fAnswer"></textarea></div></div>' +
-      '<div class="preview-label">预览</div>' +
-      '<div class="preview"></div>' +
-      '</div>';
-    card.querySelector('.fQuestion').value = question;
-    card.querySelector('.fAnswer').value = answer;
-    card.querySelector('.delBtn').addEventListener('click', () => { if (confirm('确定删除这个常见问题吗？')) { card.remove(); refreshPreview(); } });
-    card.querySelector('.upBtn').addEventListener('click', () => { const prev = card.previousElementSibling; if (prev) { faqList.insertBefore(card, prev); refreshPreview(); } });
-    card.querySelector('.downBtn').addEventListener('click', () => { const next = card.nextElementSibling; if (next) { faqList.insertBefore(next, card); refreshPreview(); } });
-    faqList.appendChild(card);
-  });
-  refreshPreview();
+  /* The 蓝奏云 FAQ must exist: if the data has none marked, mark the
+     FAQ about 蓝奏云, or add one (hidden until filled in). */
+  const faqs = (data.faqs || []).slice();
+  if (!faqs.some(f => f.kind === 'lanzou')) {
+    const i = faqs.findIndex(f => /蓝奏云/.test(f['问题'] || ''));
+    if (i >= 0) faqs[i] = Object.assign({}, faqs[i], { kind: 'lanzou', hidden: false, domains: [] });
+    else faqs.push({ '问题': '蓝奏云打不开？', '回答': '', kind: 'lanzou', hidden: true, domains: [] });
+  }
+  faqs.forEach(f => faqList.appendChild(faqItem(f)));
+  autosize($('fNotice'));
+  baselineText = JSON.stringify(collectFromForm());
+  refresh();
 }
+function refresh(){
+  const products = document.querySelectorAll('.product');
+  products.forEach((el, i) => {
+    const input = el.querySelector('.orderInput');
+    if (document.activeElement !== input) input.placeholder = String(i + 1);
+  });
+  $('productCount').textContent = '（' + products.length + '）';
+  $('faqCount').textContent = '（' + document.querySelectorAll('.faq').length + '）';
+  const current = collectFromForm();
+  $('jsonPreview').textContent = JSON.stringify(current, null, 2);
+  dirty = baselineText !== '' && JSON.stringify(current) !== baselineText;
+  updateToggleAll();
+  paintStatus();
+}
+let refreshFrame = 0;
+function changed(){ cancelAnimationFrame(refreshFrame); refreshFrame = requestAnimationFrame(refresh); }
+function updateToggleAll(){
+  const items = document.querySelectorAll('.product');
+  const anyClosed = Array.from(items).some(el => !el.classList.contains('is-open'));
+  $('toggleAll').textContent = anyClosed ? '全部展开' : '全部收起';
+  $('toggleAll').hidden = !items.length;
+}
+
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.id === 'token' || t.classList.contains('lzInput') || t.classList.contains('orderInput')) return;
+  const item = t.closest('.ed-item');
+  if (item) { if (item.classList.contains('product')) updateProductHead(item); else updateFaqHead(item); }
+  if (t.id === 'fNotice') $('noticePreview').innerHTML = t.value;
+  if (t.tagName === 'TEXTAREA') autosize(t);
+  msg = { text: '', kind: '' };
+  changed();
+});
+
+$('toggleAll').addEventListener('click', () => {
+  const items = Array.from(document.querySelectorAll('.product'));
+  const open = items.some(el => !el.classList.contains('is-open'));
+  items.forEach(el => setOpen(el, open));
+});
+$('addBtn').addEventListener('click', () => {
+  const el = productItem({ name: '', url: '', price: 1, tips: '', buttons: [] });
+  $('productList').appendChild(el);
+  setOpen(el, true);
+  el.querySelector('.pName').focus();
+  el.scrollIntoView({ block: 'center' });
+  changed();
+});
+$('addFaqBtn').addEventListener('click', () => {
+  const el = faqItem({});
+  $('faqList').appendChild(el);
+  setOpen(el, true);
+  el.querySelector('.fQuestion').focus();
+  el.scrollIntoView({ block: 'center' });
+  changed();
+});
+$('downloadBtn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(collectFromForm(), null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'site.json'; a.click(); URL.revokeObjectURL(a.href);
+});
+
+/* ---------- Load / save ---------- */
 async function loadFromPages(){
   const res = await fetch('data/site.json?' + Date.now());
   if (!res.ok) throw new Error('HTTP ' + res.status);
   data = await res.json();
   originalJsonText = JSON.stringify(data, null, 2);
   renderForm();
-  setStatus('已加载当前 JSON。', 'ok');
+  setStatus('已加载当前内容。点项目名称展开编辑。', 'ok');
 }
-$('addBtn').addEventListener('click', () => {
-  const current = document.querySelectorAll('.product').length ? collectFromForm() : (data || { title: $('fTitle').value, products: [] });
-  data = current;
-  if (!data.products) data.products = [];
-  data.products.push({ name: '', url: '', price: 1, tips: '' });
-  renderForm();
-});
-$('addFaqBtn').addEventListener('click', () => {
-  const current = (document.querySelectorAll('.product').length || document.querySelectorAll('.faq').length) ? collectFromForm() : (data || { title: $('fTitle').value, products: [], faqs: [] });
-  data = current;
-  if (!data.faqs) data.faqs = [];
-  data.faqs.push({ '问题': '', '回答': '' });
-  renderForm();
-});
-$('downloadBtn').addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify(collectFromForm(), null, 2)], { type: 'application/json' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'site.json'; a.click(); URL.revokeObjectURL(a.href);
-});
-$('saveBtn').addEventListener('click', async () => {
+function invalid(item, selector, text){
+  if (item) { setOpen(item, true); const f = item.querySelector(selector); if (f) { f.focus(); f.scrollIntoView({ block: 'center' }); } }
+  setStatus(text, 'error');
+}
+function validate(newData){
+  const products = document.querySelectorAll('.product');
+  for (let i = 0; i < newData.products.length; i++){
+    if (!newData.products[i].name.trim()) { invalid(products[i], '.pName', '第 ' + (i+1) + ' 个项目没有填写名称。'); return false; }
+    const bs = newData.products[i].buttons;
+    const rows = products[i].querySelectorAll('.ed-btn');
+    for (let j = 0; j < bs.length; j++){
+      if (!bs[j].text.trim()) { invalid(products[i], '.ed-btn:nth-child(' + (j+1) + ') .bText', '第 ' + (i+1) + ' 个项目的第 ' + (j+1) + ' 个按钮没有填写文字。'); return false; }
+      if (!bs[j].url.trim()) { invalid(products[i], '.ed-btn:nth-child(' + (j+1) + ') .bUrl', '第 ' + (i+1) + ' 个项目的第 ' + (j+1) + ' 个按钮没有填写跳转地址。'); return false; }
+    }
+  }
+  const faqs = document.querySelectorAll('.faq');
+  for (let i = 0; i < newData.faqs.length; i++){
+    if (!newData.faqs[i]['问题'].trim()) { invalid(faqs[i], '.fQuestion', '第 ' + (i+1) + ' 个常见问题没有填写问题。'); return false; }
+  }
+  return true;
+}
+async function save(){
   const token = $('token').value.trim();
   if (!token) { setStatus('请先填写令牌。', 'error'); $('token').focus(); return; }
   const newData = collectFromForm();
   if (!newData.products.length) { if (!confirm('项目列表为空，确定要提交一个空列表吗？')) return; }
-  for (let i=0;i<newData.products.length;i++){ if (!newData.products[i].name) { setStatus('第 ' + (i+1) + ' 个项目没有填写名称。', 'error'); return; } }
-  for (let i=0;i<newData.faqs.length;i++){ if (!newData.faqs[i]['问题']) { setStatus('第 ' + (i+1) + ' 个常见问题没有填写问题。', 'error'); return; } }
+  if (!validate(newData)) return;
   $('saveBtn').disabled = true;
   setStatus('正在提交……');
   try {
@@ -264,7 +703,7 @@ $('saveBtn').addEventListener('click', async () => {
     const latestText = JSON.stringify(JSON.parse(decodeB64(latest.content)), null, 2);
     if (latestText !== originalJsonText) {
       if (!confirm('仓库里的最新版本和你加载时不一样。点确定表示用你现在编辑的内容覆盖最新版，点取消则先重新加载最新版再编辑。')) {
-        data = JSON.parse(decodeB64(latest.content)); originalJsonText = latestText; renderForm(); setStatus('已取消提交，并重新加载了最新版本。', 'error'); $('saveBtn').disabled = false; return;
+        data = JSON.parse(decodeB64(latest.content)); originalJsonText = latestText; renderForm(); setStatus('已取消提交，并重新加载了最新版本。', 'error'); return;
       }
     }
     const body = { message: 'Update data/site.json via edit page', content: encodeB64(JSON.stringify(newData, null, 2)), sha: latest.sha, branch: BRANCH };
@@ -273,11 +712,19 @@ $('saveBtn').addEventListener('click', async () => {
     if (!putRes.ok) throw new Error('提交失败，HTTP ' + putRes.status + '：' + (putJson.message || '未知错误'));
     originalJsonText = JSON.stringify(newData, null, 2);
     data = newData;
-    setStatus('提交成功，顺序已保存到仓库。等 Pages 重新部署几分钟后，主页刷新才会显示新顺序：' + (putJson.commit && putJson.commit.html_url ? putJson.commit.html_url : '请在仓库提交记录里查看'), 'ok');
+    baselineText = JSON.stringify(newData);
+    dirty = false;
+    const link = putJson.commit && putJson.commit.html_url;
+    setStatus('已提交到仓库。Pages 重新部署需要几分钟，之后刷新主页即可看到。' + (link ? ' ' + link : ''), 'ok');
   } catch(e) {
     setStatus('提交失败：' + e.message, 'error');
   } finally { $('saveBtn').disabled = false; }
+}
+$('saveBtn').addEventListener('click', save);
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) { e.preventDefault(); if (!$('saveBtn').disabled) save(); }
 });
+window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
 loadFromPages().catch(e => setStatus('加载失败：' + e.message, 'error'));
 </script>
 <script>

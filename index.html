@@ -70,7 +70,7 @@ setTimeout(function () { document.documentElement.classList.add('ready'); }, 300
 <link rel="icon" type="image/x-icon" href="favicon.ico">
 <noscript><style>html:not(.ready) .site-section { visibility: visible; }</style></noscript>
 <link rel="stylesheet" href="bulma.min.css">
-<link rel="stylesheet" href="bulma-theme.css?v=20261030-02">
+<link rel="stylesheet" href="bulma-theme.css?v=20261122-04">
 </head>
 <body>
 <section class="section site-section">
@@ -85,31 +85,18 @@ setTimeout(function () { document.documentElement.classList.add('ready'); }, 300
 </div>
   <h1 id="siteTitle" class="title has-text-centered">妖者发电站</h1>
 
-  <div class="card mb-4">
+  <div class="card mb-4" id="noticeSection">
     <header class="card-header"><p class="card-header-title">说明</p></header>
     <div class="card-content">
-      <div class="content">
-        <ul>
-          <li><strong>防失联，请认准此页面，建议收藏</strong></li>
-          <li>永久地址：<a href="https://yionzion.github.io">https://yionzion.github.io</a></li>
-          <li>原创不易，请大家支持作者！乐意的话，可以多支持几份。</li>
-        </ul>
-      </div>
+      <div class="content" id="noticeBody"></div>
     </div>
   </div>
 
   <div class="card mb-4">
     <header class="card-header"><p class="card-header-title">选择项目</p></header>
     <div class="card-content">
-      <div class="field">
-        <div class="control">
-          <div class="select is-fullwidth">
-            <select id="projectSelect"><option>数据加载中……</option></select>
-          </div>
-        </div>
-      </div>
-      <div id="detail" class="detail"></div>
-      <button id="actionBtn" class="button is-primary is-fullwidth is-medium mt-4" disabled>请先选择</button>
+      <p class="pick-hint">请先选择项目，查看下载信息和购买按钮</p>
+      <div id="projectGrid" class="pick-grid"><p class="pick-status">数据加载中……</p></div>
     </div>
   </div>
 
@@ -124,11 +111,305 @@ setTimeout(function () { document.documentElement.classList.add('ready'); }, 300
 </div>
 </section>
 
+<script src="lanzou-probe.js?v=20261122-03"></script>
 <script>
-const select = document.getElementById('projectSelect');
-const detail = document.getElementById('detail');
-const btn = document.getElementById('actionBtn');
+const grid = document.getElementById('projectGrid');
+const DEFAULT_BUTTON_TEXT = '购买(需要翻墙)';
+const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const finePointer = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 let products = [];
+let current = -1;
+
+/* The panel for the chosen project (tips + its buttons). It is placed
+   inside the grid, right after the last tile of the chosen tile's row,
+   spanning the full width, so it opens directly under the tile; a
+   small notch on its top edge points at the chosen tile. */
+const panel = document.createElement('div');
+panel.className = 'pick-panel';
+panel.id = 'pickPanel';
+const inner = document.createElement('div');
+inner.className = 'pick-panel-inner';
+const detail = document.createElement('div');
+detail.className = 'detail';
+const actions = document.createElement('div');
+actions.className = 'pick-actions';
+inner.appendChild(detail);
+inner.appendChild(actions);
+panel.appendChild(inner);
+/* The gliding block behind the chosen tile (see bulma-theme.css). */
+const indicator = document.createElement('div');
+indicator.className = 'pick-indicator';
+indicator.setAttribute('aria-hidden', 'true');
+function moveIndicator(animate){
+  if (reduceMotion) return;
+  if (current < 0) { indicator.classList.remove('is-on'); return; }
+  const t = tiles()[current];
+  if (!indicator.parentNode) grid.appendChild(indicator);
+  const box = 'translate(' + t.offsetLeft + 'px,' + t.offsetTop + 'px)';
+  const fresh = !indicator.classList.contains('is-on');
+  if (!animate || fresh) {
+    /* Not on screen yet (or a resize): jump into place, a little
+       smaller, then grow in with the same spring. */
+    indicator.classList.add('no-anim');
+    indicator.style.width = t.offsetWidth + 'px';
+    indicator.style.height = t.offsetHeight + 'px';
+    indicator.style.transform = box + (fresh ? ' scale(0.7)' : '');
+    void indicator.offsetWidth;
+    indicator.classList.remove('no-anim');
+    if (!fresh) return;
+  }
+  indicator.style.width = t.offsetWidth + 'px';
+  indicator.style.height = t.offsetHeight + 'px';
+  indicator.style.transform = box;
+  indicator.classList.add('is-on');
+}
+/* A small burst of sparks from the tapped tile. */
+function burst(t){
+  if (reduceMotion) return;
+  const cx = t.offsetLeft + t.offsetWidth / 2, cy = t.offsetTop + t.offsetHeight / 2;
+  const n = 12, rx = t.offsetWidth / 2 + 18, ry = t.offsetHeight / 2 + 16;
+  for (let k = 0; k < n; k++) {
+    const a = (k / n) * Math.PI * 2 + Math.random() * 0.4;
+    const d = 0.75 + Math.random() * 0.45;
+    const sp = document.createElement('span');
+    sp.className = 'pick-spark';
+    sp.style.left = cx + 'px';
+    sp.style.top = cy + 'px';
+    sp.style.setProperty('--dx', (Math.cos(a) * rx * d).toFixed(1) + 'px');
+    sp.style.setProperty('--dy', (Math.sin(a) * ry * d).toFixed(1) + 'px');
+    sp.addEventListener('animationend', () => sp.remove());
+    grid.appendChild(sp);
+  }
+}
+let motionTimer = 0;
+function playPanel(cls, ms){
+  if (reduceMotion) return;
+  clearTimeout(motionTimer);
+  panel.classList.remove('is-entering', 'is-swapping', 'is-leaving');
+  void panel.offsetWidth;
+  panel.classList.add(cls);
+  motionTimer = setTimeout(() => {
+    panel.classList.remove(cls);
+    if (cls === 'is-leaving' && current < 0) panel.remove();
+  }, ms);
+}
+
+/* Buttons for one project: its own "buttons" list when it has one;
+   otherwise (projects not yet re-configured) one default button to
+   the project's "url", exactly like before. */
+function buttonsFor(p){
+  const list = Array.isArray(p.buttons) ? p.buttons.filter(b => b && b.url) : [];
+  if (list.length) return list.map(b => ({ text: b.text || DEFAULT_BUTTON_TEXT, url: b.url }));
+  return p.url ? [{ text: DEFAULT_BUTTON_TEXT, url: p.url }] : [];
+}
+function tiles(){ return Array.from(grid.querySelectorAll('.pick-tile')); }
+/* Returns true when the panel was (re)inserted, i.e. it opens in a
+   new row; false when it stayed under the same row. */
+function placePanel(){
+  if (current < 0) { panel.remove(); return false; }
+  /* Measure rows without the panel in the way (absolute takes it out
+     of the grid flow without replaying animations), then move it
+     only if its place changed. */
+  const before = panel.parentNode ? panel.previousElementSibling : null;
+  panel.style.position = 'absolute';
+  const ts = tiles();
+  const top = ts[current].offsetTop;
+  let last = ts[current];
+  for (let j = current + 1; j < ts.length && ts[j].offsetTop === top; j++) last = ts[j];
+  panel.style.position = '';
+  const moved = before !== last;
+  if (moved) last.after(panel);
+  const g = grid.getBoundingClientRect();
+  const t = ts[current].getBoundingClientRect();
+  panel.style.setProperty('--notch-x', Math.round(t.left - g.left + t.width / 2) + 'px');
+  return moved;
+}
+function choose(idx){
+  const wasOpen = current >= 0;
+  current = idx === current ? -1 : idx;
+  tiles().forEach((t, i) => {
+    const on = i === current;
+    t.classList.toggle('is-selected', on);
+    t.setAttribute('aria-expanded', on ? 'true' : 'false');
+    if (on) { t.style.setProperty('--rx', '0deg'); t.style.setProperty('--ry', '0deg'); }
+  });
+  grid.classList.toggle('has-selection', current >= 0);
+  if (current < 0) {
+    moveIndicator(true);
+    if (reduceMotion) panel.remove(); else playPanel('is-leaving', 180);
+    return;
+  }
+  burst(tiles()[current]);
+  const p = products[current];
+  if (p.tips) { detail.innerHTML = '<div>' + p.tips + '</div>'; detail.classList.add('show'); }
+  else { detail.innerHTML = ''; detail.classList.remove('show'); }
+  actions.innerHTML = '';
+  buttonsFor(p).forEach((cfg, j) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'button is-primary is-fullwidth is-medium';
+    b.style.setProperty('--j', j);
+    b.textContent = cfg.text;
+    b.addEventListener('click', () => { window.open(cfg.url, '_blank'); });
+    actions.appendChild(b);
+  });
+  const moved = placePanel();
+  moveIndicator(true);
+  /* New row: the panel unfolds. Same row: it stays open, the notch
+     slides to the new tile and only the content changes. */
+  playPanel(moved || !wasOpen ? 'is-entering' : 'is-swapping', 700);
+  setTimeout(() => {
+    if (current < 0) return;
+    const r = panel.getBoundingClientRect();
+    if (r.bottom > window.innerHeight || r.top < 0) {
+      panel.scrollIntoView({ block: r.height > window.innerHeight * 0.8 ? 'start' : 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' });
+    }
+  }, reduceMotion ? 0 : 300);
+}
+let resizeFrame = 0;
+window.addEventListener('resize', () => { cancelAnimationFrame(resizeFrame); resizeFrame = requestAnimationFrame(() => { placePanel(); moveIndicator(false); }); });
+
+/* Tile effects: a soft light that follows the pointer, a slight 3D
+   tilt (mouse only), and a ripple from the tap point. None of them
+   delays the click. */
+function setupTile(t){
+  t.addEventListener('pointermove', e => {
+    const r = t.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+    t.style.setProperty('--mx', (x * 100).toFixed(1) + '%');
+    t.style.setProperty('--my', (y * 100).toFixed(1) + '%');
+    if (finePointer && !reduceMotion && !t.classList.contains('is-selected')) {
+      t.style.setProperty('--rx', ((0.5 - y) * 8).toFixed(2) + 'deg');
+      t.style.setProperty('--ry', ((x - 0.5) * 8).toFixed(2) + 'deg');
+    }
+  });
+  t.addEventListener('pointerleave', () => { t.style.setProperty('--rx', '0deg'); t.style.setProperty('--ry', '0deg'); });
+  t.addEventListener('pointerdown', e => {
+    if (reduceMotion) return;
+    const r = t.getBoundingClientRect();
+    const size = Math.max(r.width, r.height) * 2.2;
+    const dot = document.createElement('span');
+    dot.className = 'pick-ripple';
+    dot.style.width = dot.style.height = size + 'px';
+    dot.style.left = (e.clientX - r.left - size / 2) + 'px';
+    dot.style.top = (e.clientY - r.top - size / 2) + 'px';
+    dot.addEventListener('animationend', () => dot.remove());
+    t.appendChild(dot);
+  });
+}
+/* Keyboard: arrow keys move between tiles (up / down keep the
+   column), Enter / Space choose, Esc closes. */
+grid.addEventListener('keydown', e => {
+  const t = e.target.closest && e.target.closest('.pick-tile');
+  if (!t) return;
+  const ts = tiles(), i = ts.indexOf(t);
+  let j = -1;
+  if (e.key === 'ArrowRight') j = Math.min(i + 1, ts.length - 1);
+  else if (e.key === 'ArrowLeft') j = Math.max(i - 1, 0);
+  else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    const down = e.key === 'ArrowDown';
+    const r = t.getBoundingClientRect(), cx = r.left + r.width / 2;
+    let rowTop = null, best = -1, bestDx = Infinity;
+    ts.forEach((u, k) => {
+      const ur = u.getBoundingClientRect();
+      if (down ? ur.top <= r.top + 2 : ur.top >= r.top - 2) return;
+      if (rowTop === null || (down ? ur.top < rowTop - 2 : ur.top > rowTop + 2)) { rowTop = ur.top; best = -1; bestDx = Infinity; }
+      if (Math.abs(ur.top - rowTop) > 2) return;
+      const dx = Math.abs(ur.left + ur.width / 2 - cx);
+      if (dx < bestDx) { bestDx = dx; best = k; }
+    });
+    j = best;
+  } else if (e.key === 'Escape' && current >= 0) {
+    e.preventDefault();
+    const k = current; choose(k); ts[k].focus();
+    return;
+  } else return;
+  e.preventDefault();
+  if (j >= 0) ts[j].focus();
+});
+
+/* ---------- 蓝奏云 test (inside the special FAQ) ----------
+   The FAQ marked "kind": "lanzou" carries the candidate domains
+   ("domains"). On click (never automatically) the visitor's browser
+   tests them (lanzou-probe.js), 6 at a time, and stops as soon as 2
+   work; only working ones are shown. Clicking one switches every
+   lanzou link of the page to it: the links on screen and the tips of
+   all projects, shown or not. */
+const LANZOU_URL = /(https?:\/\/(?:[a-z0-9-]+\.)*)lanz[a-z0-9]*\.com(?![a-z0-9-]|\.[a-z])/gi;
+function swapLanzouRoot(text, root){ return text.replace(LANZOU_URL, (m, head) => head + root); }
+function useLanzouDomain(root){
+  products.forEach(p => { if (p.tips) p.tips = swapLanzouRoot(p.tips, root); });
+  document.querySelectorAll('a[href]').forEach(a => {
+    const h = a.getAttribute('href');
+    const n = swapLanzouRoot(h, root);
+    if (n !== h) a.setAttribute('href', n);
+  });
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (node.parentElement.closest('.lzt, script, style')) continue;
+    const t = swapLanzouRoot(node.nodeValue, root);
+    if (t !== node.nodeValue) node.nodeValue = t;
+  }
+  toast('已把页面上的蓝奏云链接都换成 ' + root + '，现在可以直接点开下载了。');
+}
+let toastTimer = 0;
+function toast(text){
+  let el = document.querySelector('.site-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'site-toast';
+    el.setAttribute('role', 'status');
+    document.body.appendChild(el);
+  }
+  el.textContent = text;
+  el.classList.remove('is-shown'); void el.offsetWidth; el.classList.add('is-shown');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('is-shown'), 4000);
+}
+function lanzouTest(domains){
+  const box = document.createElement('div');
+  box.className = 'lzt';
+  box.innerHTML =
+    '<button type="button" class="button is-small lzt-run">测试哪些蓝奏云域名在我这里能打开</button>' +
+    '<p class="lzt-msg" hidden></p>' +
+    '<div class="lzt-found" hidden></div>';
+  const runBtn = box.querySelector('.lzt-run');
+  const msg = box.querySelector('.lzt-msg');
+  const found = box.querySelector('.lzt-found');
+  const show = text => { msg.textContent = text; msg.hidden = false; };
+  const chip = domain => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'lzt-chip';
+    b.textContent = domain;
+    b.title = '把页面上的蓝奏云链接换成 ' + domain;
+    b.addEventListener('click', () => {
+      found.querySelectorAll('.lzt-chip').forEach(c => c.classList.toggle('is-active', c === b));
+      useLanzouDomain(domain);
+      show('已换成 ' + domain + '。页面上的蓝奏云链接（包括其他项目里的）现在都用这个域名。');
+    });
+    return b;
+  };
+  runBtn.addEventListener('click', async () => {
+    let n = 0;
+    runBtn.disabled = true;
+    runBtn.textContent = '测试中…';
+    found.innerHTML = '';
+    found.hidden = true;
+    show('正在测试，请稍等…');
+    await LanzouProbe.test(domains, {
+      parallel: 6,
+      enough: 2,
+      onResult: (d, r) => { if (r.ok) { n++; found.appendChild(chip(d)); found.hidden = false; } },
+    });
+    show(n
+      ? '这些域名在你这里能打开。点一个，页面上的蓝奏云链接就会换成它：'
+      : '候选域名都打不开。可以换个网络（比如手机流量）再测，或改用 mega 网盘。');
+    runBtn.disabled = false;
+    runBtn.textContent = '重新测试';
+  });
+  return box;
+}
 
 async function load(){
   try {
@@ -137,9 +418,32 @@ async function load(){
       return res.json();
     }));
     if (data.title) { document.getElementById('siteTitle').textContent = data.title; document.title = data.title; }
+    const notice = typeof data.notice === 'string' ? data.notice.trim() : '';
+    document.getElementById('noticeBody').innerHTML = notice;
+    document.getElementById('noticeSection').style.display = notice ? '' : 'none';
     products = data.products || [];
-    select.innerHTML = '<option value="">请选择</option>' + products.map((p, i) => '<option value="' + i + '">' + p.name + '</option>').join('');
-    const faqs = data.faqs || [];
+    grid.innerHTML = '';
+    if (!products.length) grid.innerHTML = '<p class="pick-status">暂无项目</p>';
+    products.forEach((p, i) => {
+      const t = document.createElement('button');
+      t.type = 'button';
+      t.className = 'pick-tile';
+      t.textContent = p.name || '';
+      if ((p.name || '').length > 12) t.classList.add('is-wide');
+      t.style.setProperty('--i', Math.min(i, 16));
+      t.setAttribute('aria-expanded', 'false');
+      t.setAttribute('aria-controls', 'pickPanel');
+      t.addEventListener('click', () => choose(i));
+      setupTile(t);
+      grid.appendChild(t);
+    });
+    /* Tiles rise in one after another on first load (about 0.6s in
+       all; they can be clicked at once). */
+    if (!reduceMotion && products.length) {
+      grid.classList.add('has-indicator', 'is-intro');
+      setTimeout(() => grid.classList.remove('is-intro'), 1200);
+    }
+    const faqs = (data.faqs || []).filter(f => !f.hidden);
     const faqList = document.getElementById('faqList');
     const faqSection = document.getElementById('faqSection');
     if (!faqs.length) { faqSection.style.display = 'none'; }
@@ -155,31 +459,22 @@ async function load(){
         s.textContent = question;
         const a = document.createElement('div');
         a.innerHTML = answer;
+        if (f.kind === 'lanzou') {
+          const domains = (Array.isArray(f.domains) ? f.domains : []).map(x => String(x).trim().toLowerCase()).filter(Boolean);
+          if (domains.length) a.appendChild(lanzouTest(domains));
+        }
         d.appendChild(s); d.appendChild(a); faqList.appendChild(d);
       });
     }
   } catch (e) {
-    select.innerHTML = '<option value="">数据加载失败，请刷新重试</option>';
+    document.getElementById('noticeSection').style.display = 'none';
+    grid.innerHTML = '<p class="pick-status">数据加载失败，请刷新重试</p>';
   } finally {
     /* Data is in (or has failed): show the finished page in one
        paint, with the space-between layout already settled. */
     document.documentElement.classList.add('ready');
   }
 }
-select.addEventListener('change', () => {
-  const idx = select.value === '' ? -1 : Number(select.value);
-  const p = idx >= 0 ? products[idx] : null;
-  if (!p) { detail.classList.remove('show'); btn.disabled = true; btn.textContent = '请先选择'; return; }
-  if (p.tips) { detail.classList.add('show'); detail.innerHTML = '<div>' + p.tips + '</div>'; } else { detail.classList.remove('show'); detail.innerHTML = ''; }
-  btn.disabled = false; btn.textContent = '购买(需要翻墙)';
-});
-btn.addEventListener('click', () => {
-  const idx = select.value === '' ? -1 : Number(select.value);
-  const p = idx >= 0 ? products[idx] : null;
-  if (!p) return;
-  const target = p.url;
-  if (target) window.open(target, '_blank');
-});
 load();
 </script>
 <script>
