@@ -939,15 +939,32 @@ details > div p:last-child {
    Projects are tiles in a responsive grid (2 columns on a phone,
    4 on desktop) instead of a dropdown: every project is visible at
    once and one tap chooses it. The chosen tile's panel (tips and the
-   project's own buttons) opens inside the grid, right under the row
-   of the chosen tile, spanning the full width, so nothing jumps to
-   the bottom of the card. Tap the chosen tile again to close it. */
+   project's own buttons) unfolds inside the grid, right under the
+   chosen tile's row, with a notch pointing at the tile. Tap the
+   chosen tile again (or Esc) to close it.
+   Motion (all short, none blocks a click; all off under
+   prefers-reduced-motion):
+   - first load: tiles rise in one after another;
+   - hover: a soft light follows the pointer, mouse gets a slight 3D
+     tilt; tap: a ripple from the tap point and a small press;
+   - chosen tile: a slowly turning teal-to-gold gradient border and
+     a radio mark that pops in;
+   - panel: unfolds (height + fade), then tips and buttons rise in;
+     switching within the same row only slides the notch and swaps
+     the content; buttons get one light sweep. */
+@property --pick-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
 .pick-hint {
   font-size: 13px;
   color: var(--bulma-text-weak);
   margin: -2px 0 12px;
 }
 .pick-grid {
+  --pick-glow: rgba(15, 118, 110, 0.16);
+  --pick-ripple: rgba(15, 118, 110, 0.22);
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(146px, 1fr));
   gap: 10px;
@@ -957,7 +974,13 @@ details > div p:last-child {
   color: var(--bulma-text-weak);
 }
 .pick-tile {
+  --rx: 0deg;
+  --ry: 0deg;
+  --lift: 0px;
+  --press: 1;
   position: relative;
+  isolation: isolate;
+  overflow: hidden;
   display: flex;
   align-items: center;
   min-height: 50px;
@@ -975,7 +998,24 @@ details > div p:last-child {
   word-break: keep-all;
   overflow-wrap: anywhere;
   -webkit-tap-highlight-color: transparent;
-  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  touch-action: manipulation;
+  transform: perspective(700px) rotateX(var(--rx)) rotateY(var(--ry)) translateY(var(--lift)) scale(var(--press));
+  transition: transform 0.18s ease, border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.25s ease, color 0.2s ease;
+}
+.pick-tile.is-wide {
+  grid-column: span 2;
+}
+/* Light that follows the pointer (--mx / --my set by the script). */
+.pick-tile::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(180px circle at var(--mx, 50%) var(--my, 50%), var(--pick-glow), transparent 65%);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
 }
 /* Radio mark at the right: empty ring, filled when chosen. */
 .pick-tile::after {
@@ -989,39 +1029,135 @@ details > div p:last-child {
   border-radius: 50%;
   border: 1.5px solid var(--bulma-border);
   background: var(--bulma-scheme-main-bis);
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: border-color 0.2s ease;
 }
 .pick-tile:hover {
+  --lift: -2px;
   border-color: var(--bulma-primary);
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(60, 50, 35, 0.08);
+  box-shadow: 0 10px 24px rgba(60, 50, 35, 0.10);
+}
+.pick-tile:hover::before {
+  opacity: 1;
+}
+.pick-tile:active {
+  --press: 0.97;
 }
 .pick-tile:focus-visible {
   outline: 2px solid var(--bulma-primary);
   outline-offset: 2px;
 }
+.pick-ripple {
+  position: absolute;
+  z-index: -1;
+  border-radius: 50%;
+  background: var(--pick-ripple);
+  transform: scale(0);
+  pointer-events: none;
+  animation: pickRipple 0.55s ease-out forwards;
+}
+@keyframes pickRipple {
+  to { transform: scale(1); opacity: 0; }
+}
 .pick-tile.is-selected {
-  background: var(--bulma-primary-soft);
-  border-color: var(--bulma-primary);
   color: var(--bulma-primary);
-  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14);
-  transform: none;
+  border: 2px solid transparent;
+  padding: 8px 35px 8px 13px; /* 1px less, so the 2px border does not shift the text */
+  background:
+    linear-gradient(var(--bulma-primary-soft), var(--bulma-primary-soft)) padding-box,
+    conic-gradient(from var(--pick-angle), #0f766e, #2dd4bf, #d97706, #0f766e) border-box;
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12), 0 10px 26px rgba(15, 118, 110, 0.20);
+  animation: pickSpin 4s linear infinite;
+}
+.pick-tile.is-selected::before {
+  opacity: 1;
 }
 .pick-tile.is-selected::after {
   border-color: var(--bulma-primary);
   background: radial-gradient(circle, #fff 0 3px, var(--bulma-primary) 3.5px);
+  animation: pickPop 0.35s cubic-bezier(0.3, 1.6, 0.5, 1);
 }
+@keyframes pickSpin {
+  to { --pick-angle: 360deg; }
+}
+@keyframes pickPop {
+  0% { transform: scale(0.4); }
+  100% { transform: scale(1); }
+}
+/* First load: tiles rise in one after another (--i set by script). */
+.pick-grid.is-intro .pick-tile {
+  animation: pickIn 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--i, 0) * 22ms);
+}
+@keyframes pickIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Panel */
 .pick-panel {
   grid-column: 1 / -1;
-  margin: 2px 0 6px;
+  display: grid;
+  grid-template-rows: 1fr;
+  margin: 0 0 6px;
+}
+.pick-panel-inner {
+  min-height: 0;
+  padding-top: 8px;
+}
+.pick-panel.is-entering .pick-panel-inner,
+.pick-panel.is-leaving .pick-panel-inner {
+  overflow: hidden;
 }
 .pick-panel.is-entering {
-  animation: detailIn 0.22s ease;
+  animation: panelOpen 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-/* In the panel the tips are shown whole, no inner scroll box. */
+.pick-panel.is-leaving {
+  animation: panelClose 0.18s ease forwards;
+}
+@keyframes panelOpen {
+  from { grid-template-rows: 0fr; opacity: 0; }
+  to { grid-template-rows: 1fr; opacity: 1; }
+}
+@keyframes panelClose {
+  from { grid-template-rows: 1fr; opacity: 1; }
+  to { grid-template-rows: 0fr; opacity: 0; }
+}
+/* In the panel the tips are shown whole, no inner scroll box, with a
+   notch on the top edge pointing at the chosen tile (--notch-x). */
 .pick-panel .detail {
+  position: relative;
   margin-top: 0;
   max-height: none;
+  overflow: visible;
+}
+.pick-panel .detail::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: calc(var(--notch-x, 40px) - 10px);
+  width: 12px;
+  height: 12px;
+  background: var(--bulma-scheme-main-ter);
+  border-left: 1px solid var(--bulma-border);
+  border-top: 1px solid var(--bulma-border);
+  transform: rotate(45deg);
+  transition: left 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.pick-panel .detail.show {
+  animation: none;
+}
+.pick-panel.is-entering .detail,
+.pick-panel.is-swapping .detail {
+  animation: pickRise 0.34s cubic-bezier(0.2, 0.8, 0.2, 1) 0.04s both;
+}
+.pick-panel.is-entering .pick-actions .button,
+.pick-panel.is-swapping .pick-actions .button {
+  animation: pickRise 0.34s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(0.1s + var(--j, 0) * 0.05s);
+}
+@keyframes pickRise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
 }
 .pick-actions {
   display: grid;
@@ -1032,15 +1168,62 @@ details > div p:last-child {
 .pick-actions:empty {
   display: none;
 }
+/* Buttons: one light sweep when they appear, and again on hover. */
+.pick-actions .button {
+  position: relative;
+  overflow: hidden;
+}
+.pick-actions .button::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -60%;
+  width: 40%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transform: skewX(-20deg);
+  pointer-events: none;
+}
+.pick-panel.is-entering .pick-actions .button::after,
+.pick-panel.is-swapping .pick-actions .button::after,
+.pick-actions .button:hover::after {
+  animation: pickSweep 0.8s ease 0.3s;
+}
+.pick-actions .button:hover::after {
+  animation-delay: 0s;
+}
+@keyframes pickSweep {
+  from { left: -60%; }
+  to { left: 130%; }
+}
+[data-theme="dark"] .pick-grid {
+  --pick-glow: rgba(45, 212, 191, 0.14);
+  --pick-ripple: rgba(45, 212, 191, 0.22);
+}
 [data-theme="dark"] .pick-tile:hover {
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
 }
 [data-theme="dark"] .pick-tile.is-selected {
   color: var(--theme-link);
-  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.16);
+  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.14), 0 10px 26px rgba(0, 0, 0, 0.35);
 }
 [data-theme="dark"] .pick-tile.is-selected::after {
   background: radial-gradient(circle, #201d1a 0 3px, var(--bulma-primary) 3.5px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pick-tile,
+  .pick-tile::before,
+  .pick-tile::after,
+  .pick-panel,
+  .pick-panel *,
+  .pick-panel *::before,
+  .pick-panel *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .pick-tile {
+    transform: none !important;
+  }
 }
 
 /* ============ Edit page: compact collapsible lists ============
@@ -1231,11 +1414,6 @@ details > div p:last-child {
 }
 .edit .edit-section {
   padding-bottom: 140px;
-}
-/* A long project name takes two columns instead of wrapping into a
-   tall, narrow tile. */
-.pick-tile.is-wide {
-  grid-column: span 2;
 }
 /* Phone: the row is narrow, so the name may wrap to two lines with
    its summary below it, and the order box / tools get slimmer. */

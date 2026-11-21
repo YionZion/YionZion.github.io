@@ -70,7 +70,7 @@ setTimeout(function () { document.documentElement.classList.add('ready'); }, 300
 <link rel="icon" type="image/x-icon" href="favicon.ico">
 <noscript><style>html:not(.ready) .site-section { visibility: visible; }</style></noscript>
 <link rel="stylesheet" href="bulma.min.css">
-<link rel="stylesheet" href="bulma-theme.css?v=20261121-01">
+<link rel="stylesheet" href="bulma-theme.css?v=20261121-02">
 </head>
 <body>
 <section class="section site-section">
@@ -115,22 +115,38 @@ setTimeout(function () { document.documentElement.classList.add('ready'); }, 300
 const grid = document.getElementById('projectGrid');
 const DEFAULT_BUTTON_TEXT = '购买(需要翻墙)';
 const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const finePointer = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 let products = [];
 let current = -1;
 
 /* The panel for the chosen project (tips + its buttons). It is placed
    inside the grid, right after the last tile of the chosen tile's row,
-   spanning the full width, so it opens directly under the tile. */
+   spanning the full width, so it opens directly under the tile; a
+   small notch on its top edge points at the chosen tile. */
 const panel = document.createElement('div');
 panel.className = 'pick-panel';
 panel.id = 'pickPanel';
+const inner = document.createElement('div');
+inner.className = 'pick-panel-inner';
 const detail = document.createElement('div');
 detail.className = 'detail';
 const actions = document.createElement('div');
 actions.className = 'pick-actions';
-panel.appendChild(detail);
-panel.appendChild(actions);
-panel.addEventListener('animationend', () => panel.classList.remove('is-entering'));
+inner.appendChild(detail);
+inner.appendChild(actions);
+panel.appendChild(inner);
+let motionTimer = 0;
+function playPanel(cls, ms){
+  if (reduceMotion) return;
+  clearTimeout(motionTimer);
+  panel.classList.remove('is-entering', 'is-swapping', 'is-leaving');
+  void panel.offsetWidth;
+  panel.classList.add(cls);
+  motionTimer = setTimeout(() => {
+    panel.classList.remove(cls);
+    if (cls === 'is-leaving' && current < 0) panel.remove();
+  }, ms);
+}
 
 /* Buttons for one project: its own "buttons" list when it has one;
    otherwise (projects not yet re-configured) one default button to
@@ -141,51 +157,125 @@ function buttonsFor(p){
   return p.url ? [{ text: DEFAULT_BUTTON_TEXT, url: p.url }] : [];
 }
 function tiles(){ return Array.from(grid.querySelectorAll('.pick-tile')); }
+/* Returns true when the panel was (re)inserted, i.e. it opens in a
+   new row; false when it stayed under the same row. */
 function placePanel(){
-  if (current < 0) { panel.remove(); return; }
-  /* Measure rows without the panel in the way, then put it back
-     only if its place changed (re-inserting would replay the
-     opening animation on every resize). */
-  const before = panel.previousElementSibling;
-  panel.style.position = 'absolute'; /* out of the grid flow, without display:none (that would replay its animations) */
+  if (current < 0) { panel.remove(); return false; }
+  /* Measure rows without the panel in the way (absolute takes it out
+     of the grid flow without replaying animations), then move it
+     only if its place changed. */
+  const before = panel.parentNode ? panel.previousElementSibling : null;
+  panel.style.position = 'absolute';
   const ts = tiles();
   const top = ts[current].offsetTop;
   let last = ts[current];
   for (let j = current + 1; j < ts.length && ts[j].offsetTop === top; j++) last = ts[j];
   panel.style.position = '';
-  if (!panel.parentNode || before !== last) last.after(panel);
+  const moved = before !== last;
+  if (moved) last.after(panel);
+  const g = grid.getBoundingClientRect();
+  const t = ts[current].getBoundingClientRect();
+  panel.style.setProperty('--notch-x', Math.round(t.left - g.left + t.width / 2) + 'px');
+  return moved;
 }
 function choose(idx){
+  const wasOpen = current >= 0;
   current = idx === current ? -1 : idx;
   tiles().forEach((t, i) => {
     const on = i === current;
     t.classList.toggle('is-selected', on);
     t.setAttribute('aria-expanded', on ? 'true' : 'false');
   });
-  if (current < 0) { placePanel(); return; }
+  if (current < 0) {
+    if (reduceMotion) panel.remove(); else playPanel('is-leaving', 180);
+    return;
+  }
   const p = products[current];
   if (p.tips) { detail.innerHTML = '<div>' + p.tips + '</div>'; detail.classList.add('show'); }
   else { detail.innerHTML = ''; detail.classList.remove('show'); }
   actions.innerHTML = '';
-  buttonsFor(p).forEach(cfg => {
+  buttonsFor(p).forEach((cfg, j) => {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'button is-primary is-fullwidth is-medium';
+    b.style.setProperty('--j', j);
     b.textContent = cfg.text;
     b.addEventListener('click', () => { window.open(cfg.url, '_blank'); });
     actions.appendChild(b);
   });
-  placePanel();
-  panel.classList.remove('is-entering'); void panel.offsetWidth; panel.classList.add('is-entering');
-  requestAnimationFrame(() => {
+  const moved = placePanel();
+  /* New row: the panel unfolds. Same row: it stays open, the notch
+     slides to the new tile and only the content changes. */
+  playPanel(moved || !wasOpen ? 'is-entering' : 'is-swapping', 700);
+  setTimeout(() => {
+    if (current < 0) return;
     const r = panel.getBoundingClientRect();
     if (r.bottom > window.innerHeight || r.top < 0) {
       panel.scrollIntoView({ block: r.height > window.innerHeight * 0.8 ? 'start' : 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' });
     }
-  });
+  }, reduceMotion ? 0 : 300);
 }
 let resizeFrame = 0;
 window.addEventListener('resize', () => { cancelAnimationFrame(resizeFrame); resizeFrame = requestAnimationFrame(placePanel); });
+
+/* Tile effects: a soft light that follows the pointer, a slight 3D
+   tilt (mouse only), and a ripple from the tap point. None of them
+   delays the click. */
+function setupTile(t){
+  t.addEventListener('pointermove', e => {
+    const r = t.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+    t.style.setProperty('--mx', (x * 100).toFixed(1) + '%');
+    t.style.setProperty('--my', (y * 100).toFixed(1) + '%');
+    if (finePointer && !reduceMotion) {
+      t.style.setProperty('--rx', ((0.5 - y) * 8).toFixed(2) + 'deg');
+      t.style.setProperty('--ry', ((x - 0.5) * 8).toFixed(2) + 'deg');
+    }
+  });
+  t.addEventListener('pointerleave', () => { t.style.setProperty('--rx', '0deg'); t.style.setProperty('--ry', '0deg'); });
+  t.addEventListener('pointerdown', e => {
+    if (reduceMotion) return;
+    const r = t.getBoundingClientRect();
+    const size = Math.max(r.width, r.height) * 2.2;
+    const dot = document.createElement('span');
+    dot.className = 'pick-ripple';
+    dot.style.width = dot.style.height = size + 'px';
+    dot.style.left = (e.clientX - r.left - size / 2) + 'px';
+    dot.style.top = (e.clientY - r.top - size / 2) + 'px';
+    dot.addEventListener('animationend', () => dot.remove());
+    t.appendChild(dot);
+  });
+}
+/* Keyboard: arrow keys move between tiles (up / down keep the
+   column), Enter / Space choose, Esc closes. */
+grid.addEventListener('keydown', e => {
+  const t = e.target.closest && e.target.closest('.pick-tile');
+  if (!t) return;
+  const ts = tiles(), i = ts.indexOf(t);
+  let j = -1;
+  if (e.key === 'ArrowRight') j = Math.min(i + 1, ts.length - 1);
+  else if (e.key === 'ArrowLeft') j = Math.max(i - 1, 0);
+  else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    const down = e.key === 'ArrowDown';
+    const r = t.getBoundingClientRect(), cx = r.left + r.width / 2;
+    let rowTop = null, best = -1, bestDx = Infinity;
+    ts.forEach((u, k) => {
+      const ur = u.getBoundingClientRect();
+      if (down ? ur.top <= r.top + 2 : ur.top >= r.top - 2) return;
+      if (rowTop === null || (down ? ur.top < rowTop - 2 : ur.top > rowTop + 2)) { rowTop = ur.top; best = -1; bestDx = Infinity; }
+      if (Math.abs(ur.top - rowTop) > 2) return;
+      const dx = Math.abs(ur.left + ur.width / 2 - cx);
+      if (dx < bestDx) { bestDx = dx; best = k; }
+    });
+    j = best;
+  } else if (e.key === 'Escape' && current >= 0) {
+    e.preventDefault();
+    const k = current; choose(k); ts[k].focus();
+    return;
+  } else return;
+  e.preventDefault();
+  if (j >= 0) ts[j].focus();
+});
 
 async function load(){
   try {
@@ -206,11 +296,19 @@ async function load(){
       t.className = 'pick-tile';
       t.textContent = p.name || '';
       if ((p.name || '').length > 12) t.classList.add('is-wide');
+      t.style.setProperty('--i', Math.min(i, 16));
       t.setAttribute('aria-expanded', 'false');
       t.setAttribute('aria-controls', 'pickPanel');
       t.addEventListener('click', () => choose(i));
+      setupTile(t);
       grid.appendChild(t);
     });
+    /* Tiles rise in one after another on first load (about 0.6s in
+       all; they can be clicked at once). */
+    if (!reduceMotion && products.length) {
+      grid.classList.add('is-intro');
+      setTimeout(() => grid.classList.remove('is-intro'), 1200);
+    }
     const faqs = data.faqs || [];
     const faqList = document.getElementById('faqList');
     const faqSection = document.getElementById('faqSection');
