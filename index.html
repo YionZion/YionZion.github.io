@@ -70,7 +70,7 @@ setTimeout(function () { document.documentElement.classList.add('ready'); }, 300
 <link rel="icon" type="image/x-icon" href="favicon.ico">
 <noscript><style>html:not(.ready) .site-section { visibility: visible; }</style></noscript>
 <link rel="stylesheet" href="bulma.min.css">
-<link rel="stylesheet" href="bulma-theme.css?v=20261030-02">
+<link rel="stylesheet" href="bulma-theme.css?v=20261121-01">
 </head>
 <body>
 <section class="section site-section">
@@ -88,24 +88,15 @@ setTimeout(function () { document.documentElement.classList.add('ready'); }, 300
   <div class="card mb-4" id="noticeSection">
     <header class="card-header"><p class="card-header-title">说明</p></header>
     <div class="card-content">
-      <div class="content">
-        <ul id="noticeList"></ul>
-      </div>
+      <div class="content" id="noticeBody"></div>
     </div>
   </div>
 
   <div class="card mb-4">
     <header class="card-header"><p class="card-header-title">选择项目</p></header>
     <div class="card-content">
-      <div class="field">
-        <div class="control">
-          <div class="select is-fullwidth">
-            <select id="projectSelect"><option>数据加载中……</option></select>
-          </div>
-        </div>
-      </div>
-      <div id="detail" class="detail"></div>
-      <div id="actionBtns"><button type="button" class="button is-primary is-fullwidth is-medium mt-4" disabled>请先选择</button></div>
+      <p class="pick-hint">请先选择项目，查看下载信息和购买按钮</p>
+      <div id="projectGrid" class="pick-grid"><p class="pick-status">数据加载中……</p></div>
     </div>
   </div>
 
@@ -121,11 +112,25 @@ setTimeout(function () { document.documentElement.classList.add('ready'); }, 300
 </section>
 
 <script>
-const select = document.getElementById('projectSelect');
-const detail = document.getElementById('detail');
-const actionBtns = document.getElementById('actionBtns');
+const grid = document.getElementById('projectGrid');
 const DEFAULT_BUTTON_TEXT = '购买(需要翻墙)';
+const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let products = [];
+let current = -1;
+
+/* The panel for the chosen project (tips + its buttons). It is placed
+   inside the grid, right after the last tile of the chosen tile's row,
+   spanning the full width, so it opens directly under the tile. */
+const panel = document.createElement('div');
+panel.className = 'pick-panel';
+panel.id = 'pickPanel';
+const detail = document.createElement('div');
+detail.className = 'detail';
+const actions = document.createElement('div');
+actions.className = 'pick-actions';
+panel.appendChild(detail);
+panel.appendChild(actions);
+panel.addEventListener('animationend', () => panel.classList.remove('is-entering'));
 
 /* Buttons for one project: its own "buttons" list when it has one;
    otherwise (projects not yet re-configured) one default button to
@@ -135,23 +140,52 @@ function buttonsFor(p){
   if (list.length) return list.map(b => ({ text: b.text || DEFAULT_BUTTON_TEXT, url: b.url }));
   return p.url ? [{ text: DEFAULT_BUTTON_TEXT, url: p.url }] : [];
 }
-function renderButtons(p){
-  actionBtns.innerHTML = '';
-  if (!p) {
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'button is-primary is-fullwidth is-medium mt-4';
-    b.disabled = true; b.textContent = '请先选择';
-    actionBtns.appendChild(b);
-    return;
-  }
+function tiles(){ return Array.from(grid.querySelectorAll('.pick-tile')); }
+function placePanel(){
+  if (current < 0) { panel.remove(); return; }
+  /* Measure rows without the panel in the way, then put it back
+     only if its place changed (re-inserting would replay the
+     opening animation on every resize). */
+  const before = panel.previousElementSibling;
+  panel.style.position = 'absolute'; /* out of the grid flow, without display:none (that would replay its animations) */
+  const ts = tiles();
+  const top = ts[current].offsetTop;
+  let last = ts[current];
+  for (let j = current + 1; j < ts.length && ts[j].offsetTop === top; j++) last = ts[j];
+  panel.style.position = '';
+  if (!panel.parentNode || before !== last) last.after(panel);
+}
+function choose(idx){
+  current = idx === current ? -1 : idx;
+  tiles().forEach((t, i) => {
+    const on = i === current;
+    t.classList.toggle('is-selected', on);
+    t.setAttribute('aria-expanded', on ? 'true' : 'false');
+  });
+  if (current < 0) { placePanel(); return; }
+  const p = products[current];
+  if (p.tips) { detail.innerHTML = '<div>' + p.tips + '</div>'; detail.classList.add('show'); }
+  else { detail.innerHTML = ''; detail.classList.remove('show'); }
+  actions.innerHTML = '';
   buttonsFor(p).forEach(cfg => {
     const b = document.createElement('button');
-    b.type = 'button'; b.className = 'button is-primary is-fullwidth is-medium mt-4';
+    b.type = 'button';
+    b.className = 'button is-primary is-fullwidth is-medium';
     b.textContent = cfg.text;
     b.addEventListener('click', () => { window.open(cfg.url, '_blank'); });
-    actionBtns.appendChild(b);
+    actions.appendChild(b);
+  });
+  placePanel();
+  panel.classList.remove('is-entering'); void panel.offsetWidth; panel.classList.add('is-entering');
+  requestAnimationFrame(() => {
+    const r = panel.getBoundingClientRect();
+    if (r.bottom > window.innerHeight || r.top < 0) {
+      panel.scrollIntoView({ block: r.height > window.innerHeight * 0.8 ? 'start' : 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' });
+    }
   });
 }
+let resizeFrame = 0;
+window.addEventListener('resize', () => { cancelAnimationFrame(resizeFrame); resizeFrame = requestAnimationFrame(placePanel); });
 
 async function load(){
   try {
@@ -160,13 +194,23 @@ async function load(){
       return res.json();
     }));
     if (data.title) { document.getElementById('siteTitle').textContent = data.title; document.title = data.title; }
-    const notices = Array.isArray(data.notices) ? data.notices.filter(n => n && String(n).trim()) : [];
-    const noticeList = document.getElementById('noticeList');
-    noticeList.innerHTML = '';
-    notices.forEach(n => { const li = document.createElement('li'); li.innerHTML = n; noticeList.appendChild(li); });
-    document.getElementById('noticeSection').style.display = notices.length ? '' : 'none';
+    const notice = typeof data.notice === 'string' ? data.notice.trim() : '';
+    document.getElementById('noticeBody').innerHTML = notice;
+    document.getElementById('noticeSection').style.display = notice ? '' : 'none';
     products = data.products || [];
-    select.innerHTML = '<option value="">请选择</option>' + products.map((p, i) => '<option value="' + i + '">' + p.name + '</option>').join('');
+    grid.innerHTML = '';
+    if (!products.length) grid.innerHTML = '<p class="pick-status">暂无项目</p>';
+    products.forEach((p, i) => {
+      const t = document.createElement('button');
+      t.type = 'button';
+      t.className = 'pick-tile';
+      t.textContent = p.name || '';
+      if ((p.name || '').length > 12) t.classList.add('is-wide');
+      t.setAttribute('aria-expanded', 'false');
+      t.setAttribute('aria-controls', 'pickPanel');
+      t.addEventListener('click', () => choose(i));
+      grid.appendChild(t);
+    });
     const faqs = data.faqs || [];
     const faqList = document.getElementById('faqList');
     const faqSection = document.getElementById('faqSection');
@@ -188,20 +232,13 @@ async function load(){
     }
   } catch (e) {
     document.getElementById('noticeSection').style.display = 'none';
-    select.innerHTML = '<option value="">数据加载失败，请刷新重试</option>';
+    grid.innerHTML = '<p class="pick-status">数据加载失败，请刷新重试</p>';
   } finally {
     /* Data is in (or has failed): show the finished page in one
        paint, with the space-between layout already settled. */
     document.documentElement.classList.add('ready');
   }
 }
-select.addEventListener('change', () => {
-  const idx = select.value === '' ? -1 : Number(select.value);
-  const p = idx >= 0 ? products[idx] : null;
-  if (!p) { detail.classList.remove('show'); renderButtons(null); return; }
-  if (p.tips) { detail.classList.add('show'); detail.innerHTML = '<div>' + p.tips + '</div>'; } else { detail.classList.remove('show'); detail.innerHTML = ''; }
-  renderButtons(p);
-});
 load();
 </script>
 <script>

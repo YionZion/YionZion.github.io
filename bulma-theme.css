@@ -934,3 +934,342 @@ details > div p:last-child {
 [data-theme="dark"] .savebar {
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
 }
+
+/* ============ Home: project picker (tiles + inline panel) ============
+   Projects are tiles in a responsive grid (2 columns on a phone,
+   4 on desktop) instead of a dropdown: every project is visible at
+   once and one tap chooses it. The chosen tile's panel (tips and the
+   project's own buttons) opens inside the grid, right under the row
+   of the chosen tile, spanning the full width, so nothing jumps to
+   the bottom of the card. Tap the chosen tile again to close it. */
+.pick-hint {
+  font-size: 13px;
+  color: var(--bulma-text-weak);
+  margin: -2px 0 12px;
+}
+.pick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(146px, 1fr));
+  gap: 10px;
+}
+.pick-status {
+  grid-column: 1 / -1;
+  color: var(--bulma-text-weak);
+}
+.pick-tile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 50px;
+  padding: 9px 36px 9px 14px;
+  text-align: left;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--bulma-text-strong);
+  background: var(--bulma-scheme-main);
+  border: 1px solid var(--bulma-border);
+  border-radius: 10px;
+  cursor: pointer;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+/* Radio mark at the right: empty ring, filled when chosen. */
+.pick-tile::after {
+  content: "";
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  margin-top: -8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--bulma-border);
+  background: var(--bulma-scheme-main-bis);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.pick-tile:hover {
+  border-color: var(--bulma-primary);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(60, 50, 35, 0.08);
+}
+.pick-tile:focus-visible {
+  outline: 2px solid var(--bulma-primary);
+  outline-offset: 2px;
+}
+.pick-tile.is-selected {
+  background: var(--bulma-primary-soft);
+  border-color: var(--bulma-primary);
+  color: var(--bulma-primary);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14);
+  transform: none;
+}
+.pick-tile.is-selected::after {
+  border-color: var(--bulma-primary);
+  background: radial-gradient(circle, #fff 0 3px, var(--bulma-primary) 3.5px);
+}
+.pick-panel {
+  grid-column: 1 / -1;
+  margin: 2px 0 6px;
+}
+.pick-panel.is-entering {
+  animation: detailIn 0.22s ease;
+}
+/* In the panel the tips are shown whole, no inner scroll box. */
+.pick-panel .detail {
+  margin-top: 0;
+  max-height: none;
+}
+.pick-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.pick-actions:empty {
+  display: none;
+}
+[data-theme="dark"] .pick-tile:hover {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+[data-theme="dark"] .pick-tile.is-selected {
+  color: var(--theme-link);
+  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.16);
+}
+[data-theme="dark"] .pick-tile.is-selected::after {
+  background: radial-gradient(circle, #201d1a 0 3px, var(--bulma-primary) 3.5px);
+}
+
+/* ============ Edit page: compact collapsible lists ============
+   Projects and FAQs are one-line rows (order, name, summary, up /
+   down / delete); a tap on the name opens the row's fields. */
+.edit .ed-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 22px 0 8px;
+}
+.edit .ed-head .section-title {
+  margin: 0;
+}
+.ed-count {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--bulma-text-weak);
+}
+.ed-item {
+  background: var(--bulma-scheme-main-bis);
+  border: 1px solid var(--bulma-border);
+  border-radius: 12px;
+  margin-bottom: 8px;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.ed-item.is-open {
+  border-color: var(--bulma-primary);
+  box-shadow: var(--bulma-card-shadow);
+}
+.ed-item.is-flash {
+  animation: edFlash 1s ease;
+}
+@keyframes edFlash {
+  from { background: var(--bulma-primary-soft); }
+  to { background: var(--bulma-scheme-main-bis); }
+}
+.ed-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px 7px 10px;
+}
+.ed-row .field {
+  margin-bottom: 0 !important;
+}
+.edit .ed-order {
+  flex: none;
+  width: 48px;
+  height: 36px;
+  padding: 0 4px;
+  text-align: center;
+}
+.edit .ed-order::placeholder {
+  color: var(--bulma-text);
+}
+.ed-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 4px;
+  background: none;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  color: var(--bulma-text-strong);
+  cursor: pointer;
+}
+.ed-title::before {
+  content: "";
+  flex: none;
+  align-self: center;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--bulma-text-weak);
+  border-bottom: 2px solid var(--bulma-text-weak);
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+}
+.ed-title[aria-expanded="true"]::before {
+  transform: rotate(45deg);
+}
+.ed-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 650;
+}
+.ed-meta {
+  flex: none;
+  font-size: 12px;
+  color: var(--bulma-text-weak);
+}
+.ed-tools {
+  flex: none;
+}
+.ed-tools .button {
+  min-width: 34px;
+}
+.ed-body {
+  padding: 12px 14px 14px;
+  border-top: 1px solid var(--bulma-border-weak);
+}
+.ed-body .field:not(:last-child) {
+  margin-bottom: 12px;
+}
+.ed-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px;
+  gap: 0 10px;
+}
+.ed-grid .ed-span {
+  grid-column: 1 / -1;
+}
+.ed-sub {
+  font-weight: 400;
+  color: var(--bulma-text-weak);
+  letter-spacing: 0;
+}
+.edit .textarea.ed-code {
+  min-height: 84px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.edit .ed-body .preview {
+  margin-top: 8px;
+}
+.ed-notice-preview {
+  margin-top: 8px;
+  padding: 12px 16px;
+  border: 1px dashed var(--bulma-border);
+  border-radius: 10px;
+}
+.ed-notice-preview:empty {
+  display: none;
+}
+.ed-btn {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.ed-btn .field {
+  margin-bottom: 0 !important;
+}
+@media (max-width: 560px) {
+  .ed-btn {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed var(--bulma-border-weak);
+  }
+  .ed-btn .bUrl {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+.btn-empty {
+  font-size: 13px;
+  color: var(--bulma-text-weak);
+  margin-bottom: 8px;
+}
+.ed-add {
+  display: flex;
+  justify-content: flex-end;
+  margin: 4px 0 6px;
+}
+.ed-status {
+  font-size: 12.5px;
+  line-height: 1.5;
+  margin-bottom: 8px;
+  color: var(--bulma-text-weak);
+  overflow-wrap: anywhere;
+}
+.ed-status.is-ok {
+  color: var(--bulma-success);
+}
+.ed-status.is-error {
+  color: var(--bulma-danger);
+  font-weight: 600;
+}
+.ed-status a {
+  color: var(--theme-link);
+}
+.edit .edit-section {
+  padding-bottom: 140px;
+}
+/* A long project name takes two columns instead of wrapping into a
+   tall, narrow tile. */
+.pick-tile.is-wide {
+  grid-column: span 2;
+}
+/* Phone: the row is narrow, so the name may wrap to two lines with
+   its summary below it, and the order box / tools get slimmer. */
+@media (max-width: 560px) {
+  .ed-row {
+    gap: 6px;
+    padding: 6px 6px 6px 8px;
+  }
+  .edit .ed-order {
+    width: 40px;
+  }
+  .ed-title {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+    padding-left: 16px;
+    position: relative;
+  }
+  .ed-title::before {
+    position: absolute;
+    left: 2px;
+    top: 50%;
+    margin-top: -5px;
+  }
+  .ed-name {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    line-height: 1.35;
+  }
+  .ed-tools .button {
+    min-width: 30px;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+}

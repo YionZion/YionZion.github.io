@@ -22,33 +22,7 @@
 <title>编辑</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="stylesheet" href="bulma.min.css">
-<link rel="stylesheet" href="bulma-theme.css?v=20261027-01">
-<style>
-/* Edit page only: one project's purchase buttons, each in a light
-   bordered box with its own up / down / delete tools. */
-.btn-item {
-  border: 1px solid var(--bulma-border-weak);
-  border-radius: 10px;
-  padding: 10px 12px;
-  margin-bottom: 10px;
-}
-.btn-item-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-.btn-item-head .field { margin-bottom: 0; }
-.btn-item-title { font-size: 13px; color: var(--bulma-text-weak); }
-.btn-item .field:not(:last-child) { margin-bottom: 8px; }
-.btn-empty { font-size: 13px; color: var(--bulma-text-weak); margin-bottom: 10px; }
-/* "新增说明" gets the same tint as the other add buttons
-   (#addBtn / #addFaqBtn in bulma-theme.css). */
-#addNoticeBtn { background: #f0fdfa; border-color: #99f6e4; color: #0f766e; font-weight: 700; }
-#addNoticeBtn:hover { background: #ccfbf1; border-color: #5eead4; }
-[data-theme="dark"] #addNoticeBtn { background: #1f3d3a; border-color: #2a5a55; color: #8ad8cc; }
-[data-theme="dark"] #addNoticeBtn:hover { background: #234e4a; border-color: #35706a; }
-</style>
+<link rel="stylesheet" href="bulma-theme.css?v=20261121-01">
 </head>
 <body class="edit">
 <section class="section edit-section">
@@ -68,50 +42,48 @@
         <label class="label" for="fTitle">页面标题</label>
         <div class="control"><input id="fTitle" class="input" type="text"></div>
       </div>
+      <div class="field">
+        <label class="label" for="fNotice">说明 <span class="ed-sub">（整块 HTML，主页按 HTML 显示，只写内容不用写样式；留空则不显示）</span></label>
+        <div class="control"><textarea id="fNotice" class="textarea ed-code" spellcheck="false"></textarea></div>
+        <div id="noticePreview" class="ed-notice-preview content"></div>
+      </div>
     </div>
   </div>
 
-  <div class="section-title">说明</div>
-  <div id="noticeList"></div>
-  <div class="buttons mt-4 is-right">
-    <button id="addNoticeBtn" type="button" class="button">新增说明</button>
+  <div class="ed-head">
+    <div class="section-title">项目 <span id="productCount" class="ed-count"></span></div>
+    <button id="toggleAll" type="button" class="button is-small is-ghost">全部展开</button>
   </div>
-
-  <div class="section-title">项目</div>
   <div id="productList"></div>
+  <div class="ed-add"><button id="addBtn" type="button" class="button">新增项目</button></div>
 
-  <div class="buttons mt-4 is-right">
-    <button id="addBtn" type="button" class="button">新增项目</button>
-    <button id="downloadBtn" type="button" class="button">下载 JSON 备份</button>
+  <div class="ed-head">
+    <div class="section-title">常见问题 <span id="faqCount" class="ed-count"></span></div>
   </div>
-
-  <div class="section-title">常见问题</div>
   <div id="faqList"></div>
-  <div class="buttons mt-4 is-right">
-    <button id="addFaqBtn" type="button" class="button">新增常见问题</button>
-  </div>
-
-  <div id="status" class="notification mt-4">正在加载当前 JSON……</div>
+  <div class="ed-add"><button id="addFaqBtn" type="button" class="button">新增常见问题</button></div>
 
   <div class="card mt-4">
-    <header class="card-header"><p class="card-header-title">JSON 预览</p></header>
+    <header class="card-header"><p class="card-header-title">JSON</p></header>
     <div class="card-content">
       <details>
         <summary>查看当前 JSON（只读预览）</summary>
         <pre id="jsonPreview" class="json-preview"></pre>
       </details>
+      <div class="buttons is-right mt-3 mb-0"><button id="downloadBtn" type="button" class="button is-small">下载 JSON 备份</button></div>
     </div>
   </div>
 </div>
 </section>
 
 <div class="savebar"><div class="container is-max-tablet savebar-inner">
+  <div id="status" class="ed-status" role="status" aria-live="polite">正在加载当前 JSON……</div>
   <div class="field has-addons">
     <p class="control is-expanded">
       <input id="token" class="input" type="password" placeholder="令牌" autocomplete="off">
     </p>
     <p class="control">
-      <button id="saveBtn" type="button" class="button is-primary">保存并提交到仓库</button>
+      <button id="saveBtn" type="button" class="button is-primary" title="Ctrl / ⌘ + S">保存并提交到仓库</button>
     </p>
   </div>
 </div></div>
@@ -121,16 +93,26 @@ const $ = id => document.getElementById(id);
 const OWNER = 'YionZion';
 const REPO = 'YionZion.github.io';
 const BRANCH = 'master';
-const DEFAULT_BUTTON_TEXT = '购买(需要翻墙)';
 const JSON_PATH = 'data/site.json';
+const DEFAULT_BUTTON_TEXT = '购买(需要翻墙)';
 let data = null;
-let originalJsonText = '';
+let originalJsonText = '';   // repository version as loaded, for the conflict check on save
+let baselineText = '';       // form state right after load / save, for "unsaved changes"
+let dirty = false;
+let msg = { text: '', kind: '' };
 
-function setStatus(msg, kind){
+/* ---------- Status line in the save bar ---------- */
+function setStatus(text, kind){ msg = { text: text || '', kind: kind || '' }; paintStatus(); }
+function paintStatus(){
   const el = $('status');
-  el.textContent = msg;
-  el.className = 'notification mt-4' + (kind === 'error' ? ' is-danger' : kind === 'ok' ? ' is-success' : '');
+  let text = msg.text, kind = msg.kind;
+  if (!text && dirty) text = '有未保存的修改（Ctrl / ⌘ + S 保存）';
+  el.textContent = text;
+  el.className = 'ed-status' + (kind === 'error' ? ' is-error' : kind === 'ok' ? ' is-ok' : '');
+  el.hidden = !text;
 }
+
+/* ---------- GitHub contents API helpers ---------- */
 function decodeB64(b64){
   const bin = atob(String(b64).replace(/\s/g,''));
   const bytes = new Uint8Array(bin.length);
@@ -147,13 +129,13 @@ function encodeB64(str){
 function apiUrl(){
   return 'https://api.github.com/repos/' + OWNER + '/' + REPO + '/contents/' + JSON_PATH;
 }
+
+/* ---------- Form <-> data ---------- */
 function collectFromForm(){
-  const notices = [];
-  document.querySelectorAll('.notice').forEach(el => { notices.push(el.querySelector('.nContent').value); });
   const products = [];
   document.querySelectorAll('.product').forEach(el => {
     const buttons = [];
-    el.querySelectorAll('.btn-item').forEach(b => {
+    el.querySelectorAll('.ed-btn').forEach(b => {
       buttons.push({ text: b.querySelector('.bText').value, url: b.querySelector('.bUrl').value });
     });
     products.push({
@@ -171,200 +153,263 @@ function collectFromForm(){
     faq['回答'] = el.querySelector('.fAnswer').value;
     faqs.push(faq);
   });
-  return { title: $('fTitle').value, notices: notices, products: products, faqs: faqs };
+  return { title: $('fTitle').value, notice: $('fNotice').value, products: products, faqs: faqs };
 }
-function updatePreviewFor(el){
-  el.querySelector('.preview').innerHTML = el.querySelector('.pTips').value || '';
+
+function autosize(ta){
+  if (!ta.offsetParent) return;
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(ta.scrollHeight + 2, 420) + 'px';
 }
-/* Number the button boxes of one project, and say what the home
-   page shows when the project has no buttons of its own. */
-function updateButtonsFor(el){
-  const items = el.querySelectorAll('.btn-item');
-  items.forEach((b, i) => { b.querySelector('.btn-item-title').textContent = '按钮 ' + (i + 1); });
-  const empty = el.querySelector('.btn-empty');
-  if (items.length) { empty.style.display = 'none'; return; }
-  empty.style.display = '';
-  const url = el.querySelector('.pUrl').value.trim();
-  empty.textContent = url
-    ? '还没有配置按钮：主页会显示一个默认的「' + DEFAULT_BUTTON_TEXT + '」按钮，跳转到上面的「链接」。'
-    : '还没有配置按钮，「链接」也为空：主页不会显示购买按钮。';
+function tools(prefix){
+  return '<div class="field has-addons tool-addons ed-tools">' +
+    '<p class="control"><button type="button" class="button ' + prefix + 'Up" title="上移" aria-label="上移">↑</button></p>' +
+    '<p class="control"><button type="button" class="button ' + prefix + 'Down" title="下移" aria-label="下移">↓</button></p>' +
+    '<p class="control"><button type="button" class="button is-danger is-outlined ' + prefix + 'Del" title="删除" aria-label="删除">✕</button></p>' +
+    '</div>';
 }
-function addButtonItem(card, b){
-  const list = card.querySelector('.btnList');
-  const item = document.createElement('div');
-  item.className = 'btn-item';
-  item.innerHTML =
-    '<div class="btn-item-head"><span class="btn-item-title"></span><div class="field has-addons tool-addons"><p class="control"><button type="button" class="button is-small bUp">上移</button></p><p class="control"><button type="button" class="button is-small bDown">下移</button></p><p class="control"><button type="button" class="button is-small is-danger is-outlined bDel">删除</button></p></div></div>' +
-    '<div class="field"><label class="label is-small">按钮文字</label><div class="control"><input class="input bText" type="text"></div></div>' +
-    '<div class="field"><label class="label is-small">跳转地址</label><div class="control"><input class="input bUrl" type="text" autocomplete="off"></div></div>';
-  item.querySelector('.bText').value = b.text || '';
-  item.querySelector('.bUrl').value = b.url || '';
-  item.querySelector('.bDel').addEventListener('click', () => { if (confirm('确定删除这个按钮吗？')) { item.remove(); refreshPreview(); } });
-  item.querySelector('.bUp').addEventListener('click', () => { const prev = item.previousElementSibling; if (prev) { list.insertBefore(item, prev); refreshPreview(); } });
-  item.querySelector('.bDown').addEventListener('click', () => { const next = item.nextElementSibling; if (next) { list.insertBefore(next, item); refreshPreview(); } });
-  list.appendChild(item);
-}
-function updateOrderPlaceholders(){
-  document.querySelectorAll('.product').forEach((el, idx) => {
-    const input = el.querySelector('.orderInput');
-    if (input && document.activeElement !== input) input.placeholder = String(idx + 1);
+function bindTools(el, prefix, what, onDelete){
+  el.querySelector('.' + prefix + 'Up').addEventListener('click', () => { const p = el.previousElementSibling; if (p) { el.parentElement.insertBefore(el, p); changed(); } });
+  el.querySelector('.' + prefix + 'Down').addEventListener('click', () => { const n = el.nextElementSibling; if (n) { el.parentElement.insertBefore(n, el); changed(); } });
+  el.querySelector('.' + prefix + 'Del').addEventListener('click', () => {
+    if (!confirm('确定删除这个' + what + '吗？')) return;
+    const owner = el.closest('.product');
+    el.remove();
+    if (onDelete) onDelete(owner);
+    changed();
   });
 }
-function refreshPreview(){
-  try { $('jsonPreview').textContent = JSON.stringify(collectFromForm(), null, 2); } catch(e) {}
-  document.querySelectorAll('.product').forEach(updatePreviewFor);
-  document.querySelectorAll('.faq').forEach(el => { el.querySelector('.preview').innerHTML = el.querySelector('.fAnswer').value || ''; });
-  document.querySelectorAll('.notice').forEach(el => { el.querySelector('.nPreviewItem').innerHTML = el.querySelector('.nContent').value || ''; });
-  document.querySelectorAll('.product').forEach(updateButtonsFor);
-  updateOrderPlaceholders();
+function setOpen(item, open){
+  item.classList.toggle('is-open', open);
+  item.querySelector('.ed-body').hidden = !open;
+  item.querySelector('.ed-title').setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) item.querySelectorAll('textarea').forEach(autosize);
+  updateToggleAll();
 }
-function moveCardTo(card, targetIndex){
-  const list = $('productList');
-  const cards = Array.from(list.children);
-  const total = cards.length;
-  if (targetIndex < 0) targetIndex = 0;
-  if (targetIndex >= total) targetIndex = total - 1;
-  list.removeChild(card);
-  const remaining = Array.from(list.children);
-  if (targetIndex >= remaining.length) list.appendChild(card);
-  else list.insertBefore(card, remaining[targetIndex]);
-  refreshPreview();
+
+/* ----- one purchase button row ----- */
+function buttonRow(card, b){
+  const row = document.createElement('div');
+  row.className = 'ed-btn';
+  row.innerHTML =
+    '<input class="input bText" type="text" placeholder="按钮文字" aria-label="按钮文字">' +
+    '<input class="input bUrl" type="text" placeholder="跳转地址 https://…" aria-label="跳转地址" autocomplete="off">' +
+    tools('b');
+  row.querySelector('.bText').value = b.text || '';
+  row.querySelector('.bUrl').value = b.url || '';
+  bindTools(row, 'b', '按钮', updateProductHead);
+  card.querySelector('.btnList').appendChild(row);
+  return row;
 }
-document.addEventListener('input', e => { if (e.target.closest('.product') || e.target.closest('.faq') || e.target.closest('.notice') || e.target.id === 'fTitle') refreshPreview(); });
+
+/* ----- one project ----- */
+function productItem(p){
+  const el = document.createElement('div');
+  el.className = 'ed-item product';
+  el.innerHTML =
+    '<div class="ed-row">' +
+      '<input class="input ed-order orderInput" type="number" min="1" inputmode="numeric" autocomplete="off" title="输入新序号后回车，移动到该位置" aria-label="序号">' +
+      '<button type="button" class="ed-title" aria-expanded="false"><span class="ed-name"></span><span class="ed-meta"></span></button>' +
+      tools('i') +
+    '</div>' +
+    '<div class="ed-body" hidden>' +
+      '<div class="ed-grid">' +
+        '<div class="field ed-span"><label class="label">名称</label><div class="control"><input class="input pName" type="text"></div></div>' +
+        '<div class="field"><label class="label">链接</label><div class="control"><input class="input pUrl" type="text" autocomplete="off"></div><p class="help">没配按钮时，默认按钮跳到这里</p></div>' +
+        '<div class="field"><label class="label">价格</label><div class="control"><input class="input pPrice" type="number" step="any"></div></div>' +
+      '</div>' +
+      '<div class="field"><label class="label">提示区</label><div class="control"><textarea class="textarea ed-code pTips" spellcheck="false"></textarea></div><div class="preview"></div></div>' +
+      '<div class="field"><label class="label">按钮</label><div class="btn-empty"></div><div class="btnList"></div>' +
+        '<button type="button" class="button is-small addBtnItem">＋ 新增按钮</button></div>' +
+    '</div>';
+  el.querySelector('.pName').value = p.name || '';
+  el.querySelector('.pUrl').value = p.url || '';
+  el.querySelector('.pPrice').value = (p.price ?? '');
+  el.querySelector('.pTips').value = p.tips || '';
+  (Array.isArray(p.buttons) ? p.buttons : []).forEach(b => buttonRow(el, b || {}));
+  el.querySelector('.ed-title').addEventListener('click', () => setOpen(el, el.querySelector('.ed-body').hidden));
+  bindTools(el, 'i', '项目');
+  el.querySelector('.addBtnItem').addEventListener('click', () => {
+    /* The first button starts as the default one the home page shows
+       now (same text, same link), so nothing changes until edited. */
+    const first = !el.querySelector('.ed-btn');
+    const row = buttonRow(el, first ? { text: DEFAULT_BUTTON_TEXT, url: el.querySelector('.pUrl').value } : {});
+    updateProductHead(el);
+    changed();
+    row.querySelector('.bText').focus();
+  });
+  const order = el.querySelector('.orderInput');
+  const applyOrder = () => {
+    const list = $('productList');
+    const total = list.children.length;
+    const raw = order.value.trim();
+    if (!raw) return;
+    const num = Number(raw);
+    order.value = '';
+    if (!Number.isInteger(num) || num < 1 || num > total) { setStatus('请输入 1 到 ' + total + ' 之间的序号。', 'error'); return; }
+    const rest = Array.from(list.children).filter(c => c !== el);
+    if (num - 1 >= rest.length) list.appendChild(el); else list.insertBefore(el, rest[num - 1]);
+    el.classList.remove('is-flash'); void el.offsetWidth; el.classList.add('is-flash');
+    el.scrollIntoView({ block: 'nearest' });
+    changed();
+    setStatus('已移到第 ' + num + ' 位，保存后生效。', 'ok');
+  };
+  order.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyOrder(); } });
+  order.addEventListener('change', applyOrder);
+  updateProductHead(el);
+  return el;
+}
+function updateProductHead(el){
+  if (!el) return;
+  el.querySelector('.ed-name').textContent = el.querySelector('.pName').value.trim() || '（未命名项目）';
+  el.querySelector('.preview').innerHTML = el.querySelector('.pTips').value || '';
+  const n = el.querySelectorAll('.ed-btn').length;
+  const url = el.querySelector('.pUrl').value.trim();
+  el.querySelector('.ed-meta').textContent = n ? n + ' 个按钮' : url ? '默认按钮' : '无按钮';
+  const empty = el.querySelector('.btn-empty');
+  empty.hidden = n > 0;
+  empty.textContent = url
+    ? '还没配按钮：主页显示一个默认的「' + DEFAULT_BUTTON_TEXT + '」，跳到上面的「链接」。'
+    : '还没配按钮，「链接」也为空：主页不显示购买按钮。';
+}
+
+/* ----- one FAQ ----- */
+function faqItem(f){
+  const el = document.createElement('div');
+  el.className = 'ed-item faq';
+  el.innerHTML =
+    '<div class="ed-row">' +
+      '<button type="button" class="ed-title" aria-expanded="false"><span class="ed-name"></span></button>' +
+      tools('i') +
+    '</div>' +
+    '<div class="ed-body" hidden>' +
+      '<div class="field"><label class="label">问题</label><div class="control"><input class="input fQuestion" type="text"></div></div>' +
+      '<div class="field"><label class="label">回答</label><div class="control"><textarea class="textarea ed-code fAnswer" spellcheck="false"></textarea></div><div class="preview"></div></div>' +
+    '</div>';
+  el.querySelector('.fQuestion').value = f['问题'] || f.question || '';
+  el.querySelector('.fAnswer').value = f['回答'] || f.answer || '';
+  el.querySelector('.ed-title').addEventListener('click', () => setOpen(el, el.querySelector('.ed-body').hidden));
+  bindTools(el, 'i', '常见问题');
+  updateFaqHead(el);
+  return el;
+}
+function updateFaqHead(el){
+  el.querySelector('.ed-name').textContent = el.querySelector('.fQuestion').value.trim() || '（未填写问题）';
+  el.querySelector('.preview').innerHTML = el.querySelector('.fAnswer').value || '';
+}
+
+/* ---------- Render / refresh ---------- */
 function renderForm(){
   if (!data) return;
   $('fTitle').value = data.title || '';
-  const noticeList = $('noticeList');
-  noticeList.innerHTML = '';
-  (Array.isArray(data.notices) ? data.notices : []).forEach((n) => {
-    const card = document.createElement('div');
-    card.className = 'card notice mb-4';
-    card.innerHTML =
-      '<div class="card-content">' +
-      '<div class="faq-head"><div class="field has-addons tool-addons"><p class="control"><button type="button" class="button is-small upBtn">上移</button></p><p class="control"><button type="button" class="button is-small downBtn">下移</button></p><p class="control"><button type="button" class="button is-small is-danger is-outlined delBtn">删除</button></p></div></div>' +
-      '<div class="field"><label class="label">内容</label><div class="control"><textarea class="textarea nContent" rows="2"></textarea></div><p class="help">可以写 HTML，例如链接：&lt;a href="https://..."&gt;文字&lt;/a&gt;，不需要写样式。</p></div>' +
-      '<div class="preview-label">预览</div>' +
-      '<div class="content"><ul><li class="nPreviewItem"></li></ul></div>' +
-      '</div>';
-    card.querySelector('.nContent').value = n || '';
-    card.querySelector('.delBtn').addEventListener('click', () => { if (confirm('确定删除这条说明吗？')) { card.remove(); refreshPreview(); } });
-    card.querySelector('.upBtn').addEventListener('click', () => { const prev = card.previousElementSibling; if (prev) { noticeList.insertBefore(card, prev); refreshPreview(); } });
-    card.querySelector('.downBtn').addEventListener('click', () => { const next = card.nextElementSibling; if (next) { noticeList.insertBefore(next, card); refreshPreview(); } });
-    noticeList.appendChild(card);
-  });
+  $('fNotice').value = typeof data.notice === 'string' ? data.notice : '';
+  $('noticePreview').innerHTML = $('fNotice').value;
   const list = $('productList');
   list.innerHTML = '';
-  (data.products || []).forEach((p) => {
-    const card = document.createElement('div');
-    card.className = 'card product mb-4';
-    card.innerHTML =
-      '<div class="card-content">' +
-      '<div class="level is-mobile"><div class="level-left"><div class="field has-addons"><p class="control order-control"><input class="input orderInput" type="number" min="1" max="999" size="3" inputmode="numeric" autocomplete="off"></p><p class="control"><button type="button" class="button orderBtn">确定</button></p></div></div><div class="level-right"><div class="field has-addons tool-addons"><p class="control"><button type="button" class="button is-small upBtn">上移</button></p><p class="control"><button type="button" class="button is-small downBtn">下移</button></p><p class="control"><button type="button" class="button is-small is-danger is-outlined delBtn">删除</button></p></div></div></div>' +
-      '<div class="field"><label class="label">名称</label><div class="control"><input class="input pName" type="text"></div></div>' +
-      '<div class="field"><label class="label">链接</label><div class="control"><input class="input pUrl" type="text" autocomplete="off"></div></div>' +
-      '<div class="field"><label class="label">价格</label><div class="control"><input class="input pPrice" type="number" step="any"></div></div>' +
-      '<div class="field"><label class="label">提示区</label><div class="control"><textarea class="textarea pTips"></textarea></div></div>' +
-      '<div class="preview-label">预览</div>' +
-      '<div class="preview"></div>' +
-      '<div class="field mt-5"><label class="label">按钮</label><div class="btn-empty"></div><div class="btnList"></div><button type="button" class="button is-small addBtnItem">新增按钮</button></div>' +
-      '</div>';
-    card.querySelector('.pName').value = p.name || '';
-    card.querySelector('.pUrl').value = p.url || '';
-    card.querySelector('.pPrice').value = (p.price ?? '');
-    card.querySelector('.pTips').value = p.tips || '';
-    (Array.isArray(p.buttons) ? p.buttons : []).forEach(b => addButtonItem(card, b || {}));
-    card.querySelector('.addBtnItem').addEventListener('click', () => {
-      /* The first button starts as the default one the home page shows
-         now (same text, same link), so nothing changes until edited. */
-      const first = !card.querySelector('.btn-item');
-      addButtonItem(card, first ? { text: DEFAULT_BUTTON_TEXT, url: card.querySelector('.pUrl').value } : {});
-      refreshPreview();
-      const items = card.querySelectorAll('.btn-item');
-      items[items.length - 1].querySelector('.bText').focus();
-    });
-    card.querySelector('.delBtn').addEventListener('click', () => { if (confirm('确定删除这个项目吗？')) { card.remove(); refreshPreview(); } });
-    card.querySelector('.upBtn').addEventListener('click', () => { const prev = card.previousElementSibling; if (prev) { list.insertBefore(card, prev); refreshPreview(); } });
-    card.querySelector('.downBtn').addEventListener('click', () => { const next = card.nextElementSibling; if (next) { list.insertBefore(next, card); refreshPreview(); } });
-    const applyOrder = () => {
-      const total = list.children.length;
-      const raw = card.querySelector('.orderInput').value.trim();
-      const num = Number(raw);
-      if (!raw || !Number.isInteger(num) || num < 1 || num > total) { setStatus('请输入 1 到 ' + total + ' 之间的序号。', 'error'); card.querySelector('.orderInput').focus(); return; }
-      moveCardTo(card, num - 1);
-      card.querySelector('.orderInput').value = '';
-      setStatus('已排到第 ' + num + ' 位，点底部保存后才提交到仓库。', 'ok');
-    };
-    card.querySelector('.orderBtn').addEventListener('click', applyOrder);
-    card.querySelector('.orderInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyOrder(); } });
-    list.appendChild(card);
-  });
+  (data.products || []).forEach(p => list.appendChild(productItem(p)));
   const faqList = $('faqList');
   faqList.innerHTML = '';
-  (data.faqs || []).forEach((f) => {
-    const question = f['问题'] || f.question || '';
-    const answer = f['回答'] || f.answer || '';
-    const card = document.createElement('div');
-    card.className = 'card faq mb-4';
-    card.innerHTML =
-      '<div class="card-content">' +
-      '<div class="faq-head"><div class="field has-addons tool-addons"><p class="control"><button type="button" class="button is-small upBtn">上移</button></p><p class="control"><button type="button" class="button is-small downBtn">下移</button></p><p class="control"><button type="button" class="button is-small is-danger is-outlined delBtn">删除</button></p></div></div>' +
-      '<div class="field"><label class="label">问题</label><div class="control"><input class="input fQuestion" type="text"></div></div>' +
-      '<div class="field"><label class="label">回答</label><div class="control"><textarea class="textarea fAnswer"></textarea></div></div>' +
-      '<div class="preview-label">预览</div>' +
-      '<div class="preview"></div>' +
-      '</div>';
-    card.querySelector('.fQuestion').value = question;
-    card.querySelector('.fAnswer').value = answer;
-    card.querySelector('.delBtn').addEventListener('click', () => { if (confirm('确定删除这个常见问题吗？')) { card.remove(); refreshPreview(); } });
-    card.querySelector('.upBtn').addEventListener('click', () => { const prev = card.previousElementSibling; if (prev) { faqList.insertBefore(card, prev); refreshPreview(); } });
-    card.querySelector('.downBtn').addEventListener('click', () => { const next = card.nextElementSibling; if (next) { faqList.insertBefore(next, card); refreshPreview(); } });
-    faqList.appendChild(card);
-  });
-  refreshPreview();
+  (data.faqs || []).forEach(f => faqList.appendChild(faqItem(f)));
+  autosize($('fNotice'));
+  baselineText = JSON.stringify(collectFromForm());
+  refresh();
 }
+function refresh(){
+  const products = document.querySelectorAll('.product');
+  products.forEach((el, i) => {
+    const input = el.querySelector('.orderInput');
+    if (document.activeElement !== input) input.placeholder = String(i + 1);
+  });
+  $('productCount').textContent = '（' + products.length + '）';
+  $('faqCount').textContent = '（' + document.querySelectorAll('.faq').length + '）';
+  const current = collectFromForm();
+  $('jsonPreview').textContent = JSON.stringify(current, null, 2);
+  dirty = baselineText !== '' && JSON.stringify(current) !== baselineText;
+  updateToggleAll();
+  paintStatus();
+}
+let refreshFrame = 0;
+function changed(){ cancelAnimationFrame(refreshFrame); refreshFrame = requestAnimationFrame(refresh); }
+function updateToggleAll(){
+  const items = document.querySelectorAll('.product');
+  const anyClosed = Array.from(items).some(el => !el.classList.contains('is-open'));
+  $('toggleAll').textContent = anyClosed ? '全部展开' : '全部收起';
+  $('toggleAll').hidden = !items.length;
+}
+
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.id === 'token' || t.classList.contains('orderInput')) return;
+  const item = t.closest('.ed-item');
+  if (item) { if (item.classList.contains('product')) updateProductHead(item); else updateFaqHead(item); }
+  if (t.id === 'fNotice') $('noticePreview').innerHTML = t.value;
+  if (t.tagName === 'TEXTAREA') autosize(t);
+  msg = { text: '', kind: '' };
+  changed();
+});
+
+$('toggleAll').addEventListener('click', () => {
+  const items = Array.from(document.querySelectorAll('.product'));
+  const open = items.some(el => !el.classList.contains('is-open'));
+  items.forEach(el => setOpen(el, open));
+});
+$('addBtn').addEventListener('click', () => {
+  const el = productItem({ name: '', url: '', price: 1, tips: '', buttons: [] });
+  $('productList').appendChild(el);
+  setOpen(el, true);
+  el.querySelector('.pName').focus();
+  el.scrollIntoView({ block: 'center' });
+  changed();
+});
+$('addFaqBtn').addEventListener('click', () => {
+  const el = faqItem({});
+  $('faqList').appendChild(el);
+  setOpen(el, true);
+  el.querySelector('.fQuestion').focus();
+  el.scrollIntoView({ block: 'center' });
+  changed();
+});
+$('downloadBtn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(collectFromForm(), null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'site.json'; a.click(); URL.revokeObjectURL(a.href);
+});
+
+/* ---------- Load / save ---------- */
 async function loadFromPages(){
   const res = await fetch('data/site.json?' + Date.now());
   if (!res.ok) throw new Error('HTTP ' + res.status);
   data = await res.json();
   originalJsonText = JSON.stringify(data, null, 2);
   renderForm();
-  setStatus('已加载当前 JSON。', 'ok');
+  setStatus('已加载当前内容。点项目名称展开编辑。', 'ok');
 }
-$('addNoticeBtn').addEventListener('click', () => {
-  data = collectFromForm();
-  data.notices.push('');
-  renderForm();
-  const items = document.querySelectorAll('.notice .nContent');
-  if (items.length) items[items.length - 1].focus();
-});
-$('addBtn').addEventListener('click', () => {
-  data = collectFromForm();
-  data.products.push({ name: '', url: '', price: 1, tips: '', buttons: [] });
-  renderForm();
-});
-$('addFaqBtn').addEventListener('click', () => {
-  data = collectFromForm();
-  data.faqs.push({ '问题': '', '回答': '' });
-  renderForm();
-});
-$('downloadBtn').addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify(collectFromForm(), null, 2)], { type: 'application/json' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'site.json'; a.click(); URL.revokeObjectURL(a.href);
-});
-$('saveBtn').addEventListener('click', async () => {
+function invalid(item, selector, text){
+  if (item) { setOpen(item, true); const f = item.querySelector(selector); if (f) { f.focus(); f.scrollIntoView({ block: 'center' }); } }
+  setStatus(text, 'error');
+}
+function validate(newData){
+  const products = document.querySelectorAll('.product');
+  for (let i = 0; i < newData.products.length; i++){
+    if (!newData.products[i].name.trim()) { invalid(products[i], '.pName', '第 ' + (i+1) + ' 个项目没有填写名称。'); return false; }
+    const bs = newData.products[i].buttons;
+    const rows = products[i].querySelectorAll('.ed-btn');
+    for (let j = 0; j < bs.length; j++){
+      if (!bs[j].text.trim()) { invalid(products[i], '.ed-btn:nth-child(' + (j+1) + ') .bText', '第 ' + (i+1) + ' 个项目的第 ' + (j+1) + ' 个按钮没有填写文字。'); return false; }
+      if (!bs[j].url.trim()) { invalid(products[i], '.ed-btn:nth-child(' + (j+1) + ') .bUrl', '第 ' + (i+1) + ' 个项目的第 ' + (j+1) + ' 个按钮没有填写跳转地址。'); return false; }
+    }
+  }
+  const faqs = document.querySelectorAll('.faq');
+  for (let i = 0; i < newData.faqs.length; i++){
+    if (!newData.faqs[i]['问题'].trim()) { invalid(faqs[i], '.fQuestion', '第 ' + (i+1) + ' 个常见问题没有填写问题。'); return false; }
+  }
+  return true;
+}
+async function save(){
   const token = $('token').value.trim();
   if (!token) { setStatus('请先填写令牌。', 'error'); $('token').focus(); return; }
   const newData = collectFromForm();
   if (!newData.products.length) { if (!confirm('项目列表为空，确定要提交一个空列表吗？')) return; }
-  for (let i=0;i<newData.notices.length;i++){ if (!newData.notices[i].trim()) { setStatus('第 ' + (i+1) + ' 条说明没有填写内容。', 'error'); return; } }
-  for (let i=0;i<newData.products.length;i++){
-    if (!newData.products[i].name) { setStatus('第 ' + (i+1) + ' 个项目没有填写名称。', 'error'); return; }
-    const bs = newData.products[i].buttons;
-    for (let j=0;j<bs.length;j++){
-      if (!bs[j].text.trim() || !bs[j].url.trim()) { setStatus('第 ' + (i+1) + ' 个项目的第 ' + (j+1) + ' 个按钮没有填写完整（按钮文字和跳转地址都要填）。', 'error'); return; }
-    }
-  }
-  for (let i=0;i<newData.faqs.length;i++){ if (!newData.faqs[i]['问题']) { setStatus('第 ' + (i+1) + ' 个常见问题没有填写问题。', 'error'); return; } }
+  if (!validate(newData)) return;
   $('saveBtn').disabled = true;
   setStatus('正在提交……');
   try {
@@ -374,7 +419,7 @@ $('saveBtn').addEventListener('click', async () => {
     const latestText = JSON.stringify(JSON.parse(decodeB64(latest.content)), null, 2);
     if (latestText !== originalJsonText) {
       if (!confirm('仓库里的最新版本和你加载时不一样。点确定表示用你现在编辑的内容覆盖最新版，点取消则先重新加载最新版再编辑。')) {
-        data = JSON.parse(decodeB64(latest.content)); originalJsonText = latestText; renderForm(); setStatus('已取消提交，并重新加载了最新版本。', 'error'); $('saveBtn').disabled = false; return;
+        data = JSON.parse(decodeB64(latest.content)); originalJsonText = latestText; renderForm(); setStatus('已取消提交，并重新加载了最新版本。', 'error'); return;
       }
     }
     const body = { message: 'Update data/site.json via edit page', content: encodeB64(JSON.stringify(newData, null, 2)), sha: latest.sha, branch: BRANCH };
@@ -383,11 +428,19 @@ $('saveBtn').addEventListener('click', async () => {
     if (!putRes.ok) throw new Error('提交失败，HTTP ' + putRes.status + '：' + (putJson.message || '未知错误'));
     originalJsonText = JSON.stringify(newData, null, 2);
     data = newData;
-    setStatus('提交成功，顺序已保存到仓库。等 Pages 重新部署几分钟后，主页刷新才会显示新顺序：' + (putJson.commit && putJson.commit.html_url ? putJson.commit.html_url : '请在仓库提交记录里查看'), 'ok');
+    baselineText = JSON.stringify(newData);
+    dirty = false;
+    const link = putJson.commit && putJson.commit.html_url;
+    setStatus('已提交到仓库。Pages 重新部署需要几分钟，之后刷新主页即可看到。' + (link ? ' ' + link : ''), 'ok');
   } catch(e) {
     setStatus('提交失败：' + e.message, 'error');
   } finally { $('saveBtn').disabled = false; }
+}
+$('saveBtn').addEventListener('click', save);
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) { e.preventDefault(); if (!$('saveBtn').disabled) save(); }
 });
+window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
 loadFromPages().catch(e => setStatus('加载失败：' + e.message, 'error'));
 </script>
 <script>
